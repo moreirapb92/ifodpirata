@@ -210,15 +210,11 @@ def api_checkout():
         empresa_id = _get_empresa_id()
         id_externo = str(uuid.uuid4())
 
-        cur = db.execute("""
-            INSERT INTO pedidos (
-                id_externo, empresa_id, nome_cliente, fone, cpf_cnpj,
-                logradouro_entrega, numero_entrega, bairro_entrega, complemento,
-                cidade, referencia,
-                valor_total, forma_pagamento, forma_pagamento_detalhe,
-                troco_para, tipo_cartao, observacao, status
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDENTE')
-        """, (
+        troco_valor = data.get("troco_para")
+        precisa_troco = 1 if troco_valor else 0
+        dados_pix = data.get("dados_pix", "")
+
+        valores_pedido = (
             id_externo,
             empresa_id,
             nome_cliente,
@@ -233,20 +229,34 @@ def api_checkout():
             total,
             forma_pagamento,
             detalhe_pgto,
-            data.get("troco_para"),
+            precisa_troco,
+            troco_valor,
             data.get("tipo_cartao", ""),
+            dados_pix,
             observacao,
-        ))
+            "PENDENTE",
+        )
+        sql_pedido = """
+            INSERT INTO pedidos (
+                id_externo, empresa_id, nome_cliente, fone, cpf_cnpj,
+                logradouro_entrega, numero_entrega, bairro_entrega, complemento,
+                cidade, referencia,
+                valor_total, forma_pagamento, forma_pagamento_detalhe,
+                precisa_troco, troco_para, tipo_cartao, dados_pix,
+                observacao, status
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        log.info("INSERT pedidos: %d colunas, %d valores | %s",
+                 sql_pedido.count("?"), len(valores_pedido), valores_pedido)
+        cur = db.execute(sql_pedido, valores_pedido)
         pedido_id = cur.lastrowid
 
         for item in itens:
             qtd = float(item.get("quantidade", 1))
             vlr = float(item.get("valor_unitario", 0))
-            db.execute("""
-                INSERT INTO pedido_itens (id_pedido, empresa_id, id_produto, produto, gtin, unidade, quantidade, valor_unitario, valor_total)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
+            valores_item = (
                 pedido_id,
+                empresa_id,
                 item.get("id_produto"),
                 item.get("produto", ""),
                 item.get("gtin", ""),
@@ -254,7 +264,14 @@ def api_checkout():
                 qtd,
                 vlr,
                 qtd * vlr,
-            ))
+            )
+            sql_item = """
+                INSERT INTO pedido_itens (id_pedido, empresa_id, id_produto, produto, gtin, unidade, quantidade, valor_unitario, valor_total)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """
+            log.info("INSERT pedido_itens: %d colunas, %d valores",
+                     sql_item.count("?"), len(valores_item))
+            db.execute(sql_item, valores_item)
 
         db.commit()
 
