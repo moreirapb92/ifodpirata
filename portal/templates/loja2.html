@@ -602,19 +602,42 @@ async function enviarPedido() {
   if (pagamentoSelecionado === "PIX") {
     payload.dados_pix = document.getElementById("c-dados-pix").value.trim();
   }
-  console.log("DADOS DO CHECKOUT:", JSON.stringify(payload));
+  console.log("Enviando pedido para URL:", "/api/loja/checkout");
+  console.log("Payload pedido:", JSON.stringify(payload));
 
   var btn = document.getElementById("c-enviar");
   btn.disabled = true;
   btn.textContent = "Enviando...";
+
+  var controller = new AbortController();
+  var timeoutId = setTimeout(function() {
+    controller.abort();
+    console.log("Timeout de 20s excedido, abortando requisicao");
+  }, 20000);
+
   try {
     var r = await fetch("/api/loja/checkout", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
+      signal: controller.signal
     });
-    var resp = await r.json();
-    if (resp.ok) {
+    clearTimeout(timeoutId);
+    console.log("Status resposta:", r.status);
+    var text = await r.text();
+    console.log("Texto resposta:", text);
+    var resp;
+    try {
+      resp = JSON.parse(text);
+      console.log("JSON resposta:", resp);
+    } catch (jsonErr) {
+      console.log("Resposta nao e JSON valido:", jsonErr);
+      btn.disabled = false;
+      btn.textContent = "Fazer Pedido";
+      mostrarErroCheckout("Erro inesperado do servidor. Tente novamente.");
+      return;
+    }
+    if (resp && resp.ok) {
       console.log("Pedido enviado com sucesso");
       document.getElementById("checkout-corpo").style.display = "none";
       document.getElementById("checkout-ok").classList.add("show");
@@ -625,16 +648,21 @@ async function enviarPedido() {
         atCard(id);
       });
     } else {
-      console.log("Erro ao enviar pedido");
+      console.log("Erro ao enviar pedido:", resp);
       btn.disabled = false;
       btn.textContent = "Fazer Pedido";
-      mostrarErroCheckout(resp.erro || "Erro ao processar pedido");
+      mostrarErroCheckout(resp.error || resp.erro || resp.mensagem || "Erro ao processar pedido");
     }
   } catch (ex) {
-    console.log("Erro ao enviar pedido", ex);
+    clearTimeout(timeoutId);
+    console.log("Erro ao enviar pedido:", ex);
     btn.disabled = false;
     btn.textContent = "Fazer Pedido";
-    mostrarErroCheckout("Erro de conexao. Verifique sua internet e tente novamente.");
+    if (ex.name === "AbortError") {
+      mostrarErroCheckout("Tempo limite excedido. Verifique sua internet e tente novamente.");
+    } else {
+      mostrarErroCheckout("Erro de conexao. Verifique sua internet e tente novamente.");
+    }
   }
 }
 

@@ -6,12 +6,21 @@ import uuid
 import json
 import os
 from flask import Blueprint, request, jsonify, render_template, redirect, send_from_directory
+from werkzeug.exceptions import HTTPException
 
 from portal.models import get_db
 
 log = logging.getLogger("loja")
 
 loja_bp = Blueprint("loja", __name__)
+
+
+@loja_bp.errorhandler(Exception)
+def handle_loja_error(e):
+    if isinstance(e, HTTPException):
+        return jsonify({"success": False, "error": e.description}), e.code
+    log.error("Erro na rota loja: %s", e)
+    return jsonify({"success": False, "error": "Erro interno do servidor"}), 500
 
 
 @loja_bp.route("/loja")
@@ -119,121 +128,140 @@ def api_produtos():
 
 @loja_bp.route("/api/loja/checkout", methods=["POST"])
 def api_checkout():
-    data = request.json
-    print("PEDIDO RECEBIDO:", json.dumps(data, ensure_ascii=False, indent=2), flush=True)
-    if not data:
-        return jsonify({"error": "Dados do pedido obrigatorios"}), 400
+    try:
+        data = request.json
+        log.info("PEDIDO RECEBIDO: %s", json.dumps(data, ensure_ascii=False, indent=2))
+        if not data:
+            return jsonify({"success": False, "error": "Dados do pedido obrigatorios"}), 400
 
-    itens = data.get("itens", [])
-    if not itens:
-        return jsonify({"error": "Pedido sem itens"}), 400
+        itens = data.get("itens", [])
+        if not itens:
+            return jsonify({"success": False, "error": "Pedido sem itens"}), 400
 
-    for item in itens:
-        desc = (item.get("produto") or "").strip()
-        if not desc:
-            return jsonify({"error": "Produto sem descricao nao pode ser adicionado ao pedido"}), 400
+        total_cliente = float(data.get("total", 0))
+        log.info("DADOS CLIENTE: nome=%s fone=%s cpf=%s forma_pgto=%s",
+                 data.get("nome_cliente"), data.get("fone"), data.get("cpf_cnpj"), data.get("forma_pagamento"))
 
-    nome_cliente = (data.get("nome_cliente") or "").strip()
-    if not nome_cliente:
-        return jsonify({"error": "Nome do cliente obrigatorio"}), 400
+        for item in itens:
+            desc = (item.get("produto") or "").strip()
+            if not desc:
+                return jsonify({"success": False, "error": "Produto sem descricao nao pode ser adicionado ao pedido"}), 400
 
-    fone = (data.get("fone") or "").strip()
-    if not fone:
-        return jsonify({"error": "Telefone para contato obrigatorio"}), 400
+        nome_cliente = (data.get("nome_cliente") or "").strip()
+        if not nome_cliente:
+            return jsonify({"success": False, "error": "Nome do cliente obrigatorio"}), 400
 
-    forma_pagamento = data.get("forma_pagamento", "").upper()
-    if forma_pagamento not in ("DINHEIRO", "CARTAO", "PIX"):
-        return jsonify({"error": "Forma de pagamento invalida"}), 400
+        fone = (data.get("fone") or "").strip()
+        if not fone:
+            return jsonify({"success": False, "error": "Telefone para contato obrigatorio"}), 400
 
-    # Calcular total
-    total = 0
-    for item in itens:
-        qtd = float(item.get("quantidade", 1))
-        vlr = float(item.get("valor_unitario", 0))
-        total += qtd * vlr
+        forma_pagamento = data.get("forma_pagamento", "").upper()
+        if forma_pagamento not in ("DINHEIRO", "CARTAO", "PIX"):
+            return jsonify({"success": False, "error": "Forma de pagamento invalida"}), 400
 
-    # Montar detalhe do pagamento
-    detalhe_pgto = forma_pagamento
-    if forma_pagamento == "DINHEIRO":
-        troco_para = data.get("troco_para")
-        if troco_para:
-            detalhe_pgto = f"DINHEIRO (troco para R$ {float(troco_para):.2f})"
-    elif forma_pagamento == "CARTAO":
-        tipo_cartao = data.get("tipo_cartao", "").upper()
-        tipos_validos = {"DEBITO", "CREDITO", "VOUCHER"}
-        if tipo_cartao not in tipos_validos:
-            tipo_cartao = "DEBITO"
-        detalhe_pgto = f"CARTAO {tipo_cartao} (maquininha na entrega)"
-    elif forma_pagamento == "PIX":
-        detalhe_pgto = "PIX"
+        # Calcular total
+        total = 0
+        for item in itens:
+            qtd = float(item.get("quantidade", 1))
+            vlr = float(item.get("valor_unitario", 0))
+            total += qtd * vlr
 
-    observacao = data.get("observacao", "").strip()
-    endereco = f"{data.get('logradouro','')}, {data.get('numero','')}"
-    bairro = data.get("bairro", "")
-    comp = data.get("complemento", "")
-    if comp:
-        endereco += f" - {comp}"
-    if bairro:
-        endereco += f" - {bairro}"
+        log.info("ITENS: %d itens, total calculado R$ %.2f", len(itens), total)
 
-    db = get_db()
-    id_externo = str(uuid.uuid4())
+        # Montar detalhe do pagamento
+        detalhe_pgto = forma_pagamento
+        if forma_pagamento == "DINHEIRO":
+            troco_para = data.get("troco_para")
+            if troco_para:
+                detalhe_pgto = f"DINHEIRO (troco para R$ {float(troco_para):.2f})"
+        elif forma_pagamento == "CARTAO":
+            tipo_cartao = data.get("tipo_cartao", "").upper()
+            tipos_validos = {"DEBITO", "CREDITO", "VOUCHER"}
+            if tipo_cartao not in tipos_validos:
+                tipo_cartao = "DEBITO"
+            detalhe_pgto = f"CARTAO {tipo_cartao} (maquininha na entrega)"
+        elif forma_pagamento == "PIX":
+            detalhe_pgto = "PIX"
 
-    cur = db.execute("""
-        INSERT INTO pedidos (
-            id_externo, nome_cliente, fone, cpf_cnpj,
-            logradouro_entrega, numero_entrega, bairro_entrega, complemento,
-            cidade, referencia,
-            valor_total, forma_pagamento, forma_pagamento_detalhe,
-            troco_para, tipo_cartao, observacao, status
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDENTE')
-    """, (
-        id_externo,
-        nome_cliente,
-        fone,
-        data.get("cpf_cnpj", ""),
-        data.get("logradouro", ""),
-        data.get("numero", ""),
-        data.get("bairro", ""),
-        data.get("complemento", ""),
-        data.get("cidade", ""),
-        data.get("referencia", ""),
-        total,
-        forma_pagamento,
-        detalhe_pgto,
-        data.get("troco_para"),
-        data.get("tipo_cartao", ""),
-        observacao,
-    ))
-    pedido_id = cur.lastrowid
+        observacao = data.get("observacao", "").strip()
+        endereco = f"{data.get('logradouro','')}, {data.get('numero','')}"
+        bairro = data.get("bairro", "")
+        comp = data.get("complemento", "")
+        if comp:
+            endereco += f" - {comp}"
+        if bairro:
+            endereco += f" - {bairro}"
 
-    for item in itens:
-        qtd = float(item.get("quantidade", 1))
-        vlr = float(item.get("valor_unitario", 0))
-        db.execute("""
-            INSERT INTO pedido_itens (id_pedido, id_produto, produto, gtin, unidade, quantidade, valor_unitario, valor_total)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        db = get_db()
+        id_externo = str(uuid.uuid4())
+
+        cur = db.execute("""
+            INSERT INTO pedidos (
+                id_externo, nome_cliente, fone, cpf_cnpj,
+                logradouro_entrega, numero_entrega, bairro_entrega, complemento,
+                cidade, referencia,
+                valor_total, forma_pagamento, forma_pagamento_detalhe,
+                troco_para, tipo_cartao, observacao, status
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDENTE')
         """, (
-            pedido_id,
-            item.get("id_produto"),
-            item.get("produto", ""),
-            item.get("gtin", ""),
-            item.get("unidade", "UN"),
-            qtd,
-            vlr,
-            qtd * vlr,
+            id_externo,
+            nome_cliente,
+            fone,
+            data.get("cpf_cnpj", ""),
+            data.get("logradouro", ""),
+            data.get("numero", ""),
+            data.get("bairro", ""),
+            data.get("complemento", ""),
+            data.get("cidade", ""),
+            data.get("referencia", ""),
+            total,
+            forma_pagamento,
+            detalhe_pgto,
+            data.get("troco_para"),
+            data.get("tipo_cartao", ""),
+            observacao,
         ))
+        pedido_id = cur.lastrowid
 
-    db.commit()
+        for item in itens:
+            qtd = float(item.get("quantidade", 1))
+            vlr = float(item.get("valor_unitario", 0))
+            db.execute("""
+                INSERT INTO pedido_itens (id_pedido, id_produto, produto, gtin, unidade, quantidade, valor_unitario, valor_total)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                pedido_id,
+                item.get("id_produto"),
+                item.get("produto", ""),
+                item.get("gtin", ""),
+                item.get("unidade", "UN"),
+                qtd,
+                vlr,
+                qtd * vlr,
+            ))
 
-    log.info(f"Pedido #{pedido_id} criado na loja: {nome_cliente} - R$ {total:.2f} ({detalhe_pgto})")
+        db.commit()
 
-    return jsonify({
-        "ok": True,
-        "id": pedido_id,
-        "id_externo": id_externo,
-        "total": total,
-    }), 201
+        log.info("Pedido #%d criado na loja: %s - R$ %.2f (%s)", pedido_id, nome_cliente, total, detalhe_pgto)
+
+        return jsonify({
+            "success": True,
+            "ok": True,
+            "id": pedido_id,
+            "pedido_id": pedido_id,
+            "id_externo": id_externo,
+            "total": total,
+            "message": "Pedido enviado com sucesso",
+        }), 201
+
+    except Exception as e:
+        log.error("ERRO ao criar pedido: %s", e)
+        import traceback
+        log.error(traceback.format_exc())
+        return jsonify({
+            "success": False,
+            "error": f"Erro interno ao processar pedido: {str(e)}",
+        }), 500
 
 
 @loja_bp.route("/api/loja/produto/<int:produto_id>/foto")
