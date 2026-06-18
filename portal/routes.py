@@ -295,6 +295,49 @@ def confirmar_sincronizacao(pedido_id):
     return jsonify({"ok": True})
 
 
+@api.route("/sync/pedidos/<pedido_id>/atualizar", methods=["POST"])
+@require_api_key
+def atualizar_pedido_agente(pedido_id):
+    """
+    O agente local chama este endpoint APOS importar um pedido no Firebird.
+    Body:
+      { "status": "IMPORTADO",
+        "orcamento_id": 123,
+        "numero_orcamento": 123,
+        "erro_importacao": null }
+    ou:
+      { "status": "ERRO_IMPORTACAO",
+        "erro_importacao": "Mensagem de erro" }
+    """
+    data = request.json
+    if not data:
+        return jsonify({"error": "No data"}), 400
+    db = get_db()
+    row = db.execute("SELECT * FROM pedidos WHERE id_externo = ?", [pedido_id]).fetchone()
+    if not row:
+        return jsonify({"error": "Pedido nao encontrado"}), 404
+    status = data.get("status", "IMPORTADO")
+    orcamento_id = data.get("orcamento_id")
+    numero_orcamento = data.get("numero_orcamento")
+    erro = data.get("erro_importacao")
+    now = __import__("datetime").datetime.now().isoformat()
+    db.execute("""UPDATE pedidos SET
+        status = ?, sincronizado = 1,
+        orcamento_id = ?, id_orcamento_firebird = ?,
+        numero_orcamento = ?,
+        erro_importacao = ?, importado = ?,
+        data_importacao = ?,
+        atualizado_em = CURRENT_TIMESTAMP
+        WHERE id_externo = ?""",
+        (status,
+         orcamento_id, orcamento_id, numero_orcamento,
+         erro, 1 if status == "IMPORTADO" else 0,
+         now if status == "IMPORTADO" else None,
+         pedido_id))
+    db.commit()
+    return jsonify({"ok": True, "pedido_id": pedido_id, "status": status})
+
+
 # ----- Portal: Public queries -----
 @api.route("/produtos", methods=["GET"])
 def list_produtos():

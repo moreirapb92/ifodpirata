@@ -3,10 +3,10 @@ Sync Engine - Agente de sincronizacao automatica.
 
 Responsabilidades:
 1. LER produtos, precos, estoque, grupos, clientes do Firebird e ENVIAR ao Portal.
-2. Sincronizar dados do emitente.
+2. IMPORTAR pedidos ACEITOS do portal online no Firebird local quando PORTAL_URL
+   aponta para o Render (modo online).
 
-IMPORTACAO de pedidos e MANUAL (via web ou CLI).
-O agente NAO importa pedidos automaticamente.
+IMPORTACAO de pedidos e MANUAL quando em modo local.
 """
 import time
 import json
@@ -141,22 +141,47 @@ def sync_data_to_portal():
         return False
 
 
+def import_and_update_pedidos():
+    """Importa pedidos ACEITOS do portal online no Firebird local e atualiza o portal.
+
+    Funciona apenas quando PORTAL_URL aponta para um portal online (Render).
+    """
+    try:
+        from agent.importer_online import PortalAPI, importar_todos_pedidos
+        api = PortalAPI()
+        if not api.testar_conexao():
+            log.warning("Nao foi possivel conectar ao portal para importar pedidos")
+            return False
+        imp, err, pul = importar_todos_pedidos(api)
+        if imp > 0:
+            log.info(f"Importados {imp} pedido(s) com sucesso do portal")
+        if err > 0:
+            log.warning(f"{err} pedido(s) falharam na importacao (veja logs acima)")
+        return True
+    except ImportError as e:
+        log.warning(f"Importador online nao disponivel: {e}")
+        return False
+    except Exception as e:
+        log.error(f"Erro ao importar pedidos do portal: {e}")
+        return False
+
+
 def run_once():
-    """Executa um ciclo de sincronizacao de dados (apenas produtos)."""
+    """Executa um ciclo completo: sync de dados + importacao de pedidos."""
     log.info("=" * 50)
-    log.info("Iniciando ciclo de sincronizacao (apenas dados)")
+    log.info("Iniciando ciclo de sincronizacao")
     sync_data_to_portal()
-    log.info("Importacao de pedidos: MANUAL (use a pagina web ou CLI)")
+    log.info("Verificando pedidos pendentes no portal...")
+    import_and_update_pedidos()
     log.info("Ciclo finalizado")
     log.info("=" * 50)
 
 
 def run_forever():
-    """Executa sincronizacao continua de dados (sem importar pedidos)."""
+    """Executa sincronizacao continua de dados + importacao de pedidos."""
     log.info(f"Iniciando sync engine (intervalo: {SYNC_INTERVAL_SECONDS}s)")
     log.info(f"Portal URL: {PORTAL_URL}")
-    log.info("Modo: apenas sincronizacao de dados (produtos, clientes, etc.)")
-    log.info("Importacao de pedidos: MANUAL via /admin/pedidos-importacao ou CLI")
+    log.info("Modo: sync de dados + importacao automatica de pedidos")
     log.info("Pressione Ctrl+C para parar")
 
     while True:

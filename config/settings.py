@@ -1,4 +1,18 @@
 import os
+from pathlib import Path
+
+# Carregar .env se existir
+_env_file = Path(__file__).resolve().parent.parent / ".env"
+if _env_file.is_file():
+    with open(str(_env_file), "r") as _f:
+        for _line in _f:
+            _line = _line.strip()
+            if _line and not _line.startswith("#") and "=" in _line:
+                _k, _v = _line.split("=", 1)
+                _k = _k.strip()
+                _v = _v.strip()
+                if _k not in os.environ:
+                    os.environ[_k] = _v
 
 # Firebird connection
 FB_HOST = os.getenv("FB_HOST", "")
@@ -17,6 +31,10 @@ def get_fb_dsn():
 PORTAL_HOST = os.getenv("PORTAL_HOST", "0.0.0.0")
 PORTAL_PORT = int(os.getenv("PORTAL_PORT", "5000"))
 PORTAL_SECRET_KEY = os.getenv("PORTAL_SECRET_KEY", "ifodpirata-dev-key-change-in-production")
+
+# Modo online: quando True, o portal NAO tenta conectar no Firebird
+# Toda importacao de pedidos para ORCAMENTO/DAV deve ser feita pelo agente local
+MODO_ONLINE = os.getenv("MODO_ONLINE", "false").lower() in ("true", "1", "sim", "yes")
 
 # Sync
 SYNC_INTERVAL_SECONDS = int(os.getenv("SYNC_INTERVAL_SECONDS", "60"))

@@ -20,7 +20,9 @@ services:
       - key: PORTAL_HOST
         value: 0.0.0.0
       - key: PORTAL_URL
-        value: https://ifodpirata-portal.onrender.com
+        value: https://ifodpirata.onrender.com
+      - key: MODO_ONLINE
+        value: "true"
       - key: SYNC_INTERVAL_SECONDS
         value: "60"
       - key: IMAGENS_PRODUTOS_DIR
@@ -61,7 +63,7 @@ services:
       - key: FB_PORT
         value: "3050"
       - key: PORTAL_URL
-        value: https://ifodpirata-portal.onrender.com
+        value: https://ifodpirata.onrender.com
       - key: PORTAL_API_KEY
         fromService:
           type: web

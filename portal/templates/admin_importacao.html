@@ -88,6 +88,7 @@
     </div>
 
     <script>
+        const MODO_ONLINE = '{{ MODO_ONLINE }}' === 'true';
         let dryRun = true;
         let diagnosticosCache = {};
 
@@ -96,7 +97,9 @@
             const c = await r.json();
             dryRun = c.dry_run === 'true';
             const div = document.getElementById('status-dry-run');
-            if (dryRun) {
+            if (MODO_ONLINE) {
+                div.innerHTML = '<span style="background:#d1ecf1;color:#0c5460;padding:8px 20px;border-radius:20px;font-weight:700;">&#127760; MODO ONLINE - A importa&ccedil;&atilde;o para o HOST &eacute; feita pelo agente local instalado no mercado.</span>';
+            } else if (dryRun) {
                 div.innerHTML = '<span style="background:#fef3cd;color:#856404;padding:8px 20px;border-radius:20px;font-weight:700;">&#9888; DRY RUN ATIVADO - Nenhum pedido ser&aacute; gravado no Firebird</span>';
             } else {
                 div.innerHTML = '<span style="background:#d4edda;color:#155724;padding:8px 20px;border-radius:20px;font-weight:700;">&#10003; DRY RUN DESATIVADO - Pedidos ser&atilde;o importados para o Firebird</span>';
@@ -175,8 +178,12 @@
 
                     ${pendente ? `
                     <div class="acoes">
+                        ${MODO_ONLINE ? `
+                        <span style="font-size:13px;color:#3498db;">&#127760; Aguardando agente local importar este pedido...</span>
+                        ` : `
                         <button class="btn btn-primary" onclick="simular(${p.id})">&#128269; Simular</button>
                         <button class="btn btn-success" onclick="importar(${p.id})" id="btn-imp-${p.id}">&#128190; Importar para Or&ccedil;amento</button>
+                        `}
                         <button class="btn btn-warning" onclick="ignorar(${p.id})">&#10007; Ignorar</button>
                         <button class="btn btn-danger" onclick="cancelar(${p.id})">&#128465; Cancelar</button>
                     </div>
@@ -199,9 +206,11 @@
             }).join('');
 
             // Carregar diagnostico para pedidos pendentes
-            pedidos.filter(p => p.status === 'ACEITO' && !p.importado).forEach(p => {
-                carregarDiagnostico(p.id);
-            });
+            if (!MODO_ONLINE) {
+                pedidos.filter(p => p.status === 'ACEITO' && !p.importado).forEach(p => {
+                    carregarDiagnostico(p.id);
+                });
+            }
         }
 
         async function carregarDiagnostico(id) {

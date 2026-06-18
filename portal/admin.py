@@ -6,6 +6,7 @@ import logging
 from flask import Blueprint, request, jsonify, render_template
 
 from portal.models import get_db
+from config.settings import MODO_ONLINE
 
 log = logging.getLogger("admin")
 
@@ -21,7 +22,7 @@ def pagina_configuracao():
 
 @admin_bp.route("/admin/pedidos-importacao")
 def pagina_importacao():
-    return render_template("admin_importacao.html")
+    return render_template("admin_importacao.html", MODO_ONLINE=str(MODO_ONLINE).lower())
 
 
 # ===== API: Config =====
@@ -76,9 +77,14 @@ def listar_pedidos_importacao():
     return jsonify(result)
 
 
+def _modo_online_error():
+    return jsonify({"error": "Importacao desativada no modo online. Use o agente local para importar pedidos."}), 400
+
 @admin_bp.route("/api/admin/pedidos/<int:pedido_id>/simular", methods=["POST"])
 def simular_importacao(pedido_id):
     """Simula a importacao (valida sem gravar) com detalhes por item."""
+    if MODO_ONLINE:
+        return _modo_online_error()
     from agent.writer import validar_pedido
 
     db = get_db()
@@ -134,6 +140,8 @@ def simular_importacao(pedido_id):
 @admin_bp.route("/api/admin/pedidos/<int:pedido_id>/importar", methods=["POST"])
 def importar_pedido(pedido_id):
     """Importa o pedido como ORCAMENTO no Firebird. Usa o importador centralizado."""
+    if MODO_ONLINE:
+        return _modo_online_error()
     from portal.importer import importar_pedido_para_orcamento
     result = importar_pedido_para_orcamento(pedido_id)
     if result.get("success"):
@@ -163,6 +171,8 @@ def importar_pedido(pedido_id):
 @admin_bp.route("/api/admin/pedidos/<int:pedido_id>/diagnosticar", methods=["GET"])
 def diagnosticar_pedido(pedido_id):
     """Retorna diagnostico completo do pedido + validacao por item no Firebird."""
+    if MODO_ONLINE:
+        return _modo_online_error()
     from portal.importer import diagnosticar_pedido
     diag = diagnosticar_pedido(pedido_id)
     if "erro" in diag:
