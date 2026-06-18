@@ -243,14 +243,58 @@ Para uma loja funcional sem imagens, o sistema já funciona perfeitamente — os
 
 ## Banco de Dados
 
-### SQLite (padrão)
+### SQLite (padrao)
 
 O banco fica em `/data/portal.db` (disco persistente configurado no Web Service).
+
+**Importante:** Para que os dados sobrevivam a redeploys, o Render precisa de um **Persistent Disk** montado em `/data`.
+Sem ele, a cada deploy o SQLite e criado vazio e voce precisa rodar `sincronizar_render.py` novamente.
 
 **Cuidados:**
 - SQLite não suporta concorrência pesada (várias requisições simultâneas podem dar `database is locked`)
 - Para um volume baixo de pedidos (dezenas/dia), SQLite aguenta bem
 - O Render Free tem 512 MB de RAM — limite de conexões SQLite não será problema
+
+---
+
+## Apos cada deploy: repovoar o portal
+
+Se o banco SQLite no Render foi recriado (redeploy sem disco persistente), execute:
+
+```bash
+cd C:\Users\NONATO\Documents\ifodpirata
+
+# 1. Testar se esta vazio
+python testar_render.py
+# Saida esperada: "Portal online sem produtos. Rode python sincronizar_render.py"
+
+# 2. Sincronizar Firebird -> Portal
+python sincronizar_render.py
+```
+
+O comando `sincronizar_render.py` le os dados do Firebird local e envia para o portal online.
+
+Para verificar se funcionou:
+```bash
+python testar_render.py
+# Saida esperada: "Portal OK com 11944 produtos e 18 grupos."
+```
+
+### Comandos uteis
+
+```bash
+# Testar conexao
+python testar_render.py
+
+# Sincronizar agora
+python sincronizar_render.py
+
+# Importar pedidos pendentes do portal para o HOST
+python importar_pedidos_online.py
+
+# Agente continuo (sync + import a cada 60s)
+python run_agent.py
+```
 
 ### PostgreSQL (futuro)
 
