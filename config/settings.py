@@ -56,6 +56,9 @@ SYNC_INTERVAL_SECONDS = int(os.getenv("SYNC_INTERVAL_SECONDS", "60"))
 PORTAL_URL = os.getenv("PORTAL_URL", "http://localhost:5000")
 PORTAL_API_KEY = os.getenv("PORTAL_API_KEY", "agent-api-key-change-me")
 
+# Empresa (multi-tenant): qual empresa este agente representa
+EMPRESA_SLUG = os.getenv("EMPRESA_SLUG", "demo")
+
 # Destino dos pedidos aceitos no portal: "ORCAMENTO" (padrao) ou "PRVD"
 DESTINO_PEDIDO = os.getenv("DESTINO_PEDIDO", "ORCAMENTO")
 

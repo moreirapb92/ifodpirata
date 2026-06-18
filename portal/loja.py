@@ -5,7 +5,7 @@ import logging
 import uuid
 import json
 import os
-from flask import Blueprint, request, jsonify, render_template, redirect, send_from_directory
+from flask import Blueprint, request, jsonify, render_template, redirect, send_from_directory, session
 from werkzeug.exceptions import HTTPException
 
 from portal.models import get_db
@@ -15,21 +15,31 @@ log = logging.getLogger("loja")
 loja_bp = Blueprint("loja", __name__)
 
 
-@loja_bp.errorhandler(Exception)
-def handle_loja_error(e):
-    if isinstance(e, HTTPException):
-        return jsonify({"success": False, "error": e.description}), e.code
-    log.error("Erro na rota loja: %s", e)
-    return jsonify({"success": False, "error": "Erro interno do servidor"}), 500
+def _get_empresa_id():
+    return session.get("empresa_id", 1)
 
 
 @loja_bp.route("/loja")
-def pagina_loja():
+def pagina_loja_antiga():
     return render_template("loja_nova.html")
+
 
 @loja_bp.route("/loja2")
 def pagina_loja2():
-    return render_template("loja2.html")
+    session["empresa_id"] = 1
+    session["empresa_slug"] = "demo"
+    return render_template("loja2.html", empresa_slug="demo")
+
+
+@loja_bp.route("/loja/<slug>")
+def pagina_loja_slug(slug):
+    from portal.empresa_helper import get_empresa_by_slug
+    empresa = get_empresa_by_slug(slug)
+    if not empresa:
+        return jsonify({"success": False, "error": "Loja nao encontrada"}), 404
+    session["empresa_id"] = empresa["id"]
+    session["empresa_slug"] = slug
+    return render_template("loja2.html", empresa_slug=slug)
 
 
 def _sanitizar(valor, fallback=""):
@@ -43,8 +53,9 @@ def _sanitizar(valor, fallback=""):
 
 @loja_bp.route("/api/loja/emitente")
 def api_emitente():
+    empresa_id = _get_empresa_id()
     db = get_db()
-    row = db.execute("SELECT * FROM emitente WHERE id = 1").fetchone()
+    row = db.execute("SELECT * FROM emitente WHERE empresa_id = ? ORDER BY id LIMIT 1", [empresa_id]).fetchone()
     if not row:
         return jsonify({"fantasia": "Minha Loja", "whatsapp": "", "chave_pix": "", "nome_recebedor_pix": "", "obs_pagamento_pix": ""})
     d = dict(row)
@@ -62,19 +73,22 @@ def api_emitente():
 
 @loja_bp.route("/api/loja/grupos")
 def api_grupos():
+    empresa_id = _get_empresa_id()
     db = get_db()
     rows = db.execute("""
         SELECT g.*, COUNT(p.id) as total_produtos
         FROM grupos g
-        LEFT JOIN produtos p ON p.grupo = g.id_grupo AND p.status = 'ATIVO'
+        LEFT JOIN produtos p ON p.grupo = g.id_grupo AND p.empresa_id = ? AND p.status = 'ATIVO'
+        WHERE g.empresa_id = ?
         GROUP BY g.id
         ORDER BY g.grupo
-    """).fetchall()
+    """, [empresa_id, empresa_id]).fetchall()
     return jsonify([dict(r) for r in rows])
 
 
 @loja_bp.route("/api/loja/produtos")
 def api_produtos():
+    empresa_id = _get_empresa_id()
     db = get_db()
     grupo = request.args.get("grupo", type=int)
     busca = request.args.get("busca", "").strip()
@@ -82,8 +96,8 @@ def api_produtos():
     por_pagina = 30
     offset = (pagina - 1) * por_pagina
 
-    sql = "SELECT * FROM produtos WHERE status = 'ATIVO' AND valor_venda > 0 AND produto IS NOT NULL AND produto != ''"
-    params = []
+    sql = "SELECT * FROM produtos WHERE empresa_id = ? AND status = 'ATIVO' AND valor_venda > 0 AND produto IS NOT NULL AND produto != ''"
+    params = [empresa_id]
 
     if grupo:
         sql += " AND grupo = ?"
@@ -193,18 +207,20 @@ def api_checkout():
             endereco += f" - {bairro}"
 
         db = get_db()
+        empresa_id = _get_empresa_id()
         id_externo = str(uuid.uuid4())
 
         cur = db.execute("""
             INSERT INTO pedidos (
-                id_externo, nome_cliente, fone, cpf_cnpj,
+                id_externo, empresa_id, nome_cliente, fone, cpf_cnpj,
                 logradouro_entrega, numero_entrega, bairro_entrega, complemento,
                 cidade, referencia,
                 valor_total, forma_pagamento, forma_pagamento_detalhe,
                 troco_para, tipo_cartao, observacao, status
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDENTE')
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDENTE')
         """, (
             id_externo,
+            empresa_id,
             nome_cliente,
             fone,
             data.get("cpf_cnpj", ""),
@@ -227,8 +243,8 @@ def api_checkout():
             qtd = float(item.get("quantidade", 1))
             vlr = float(item.get("valor_unitario", 0))
             db.execute("""
-                INSERT INTO pedido_itens (id_pedido, id_produto, produto, gtin, unidade, quantidade, valor_unitario, valor_total)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO pedido_itens (id_pedido, empresa_id, id_produto, produto, gtin, unidade, quantidade, valor_unitario, valor_total)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 pedido_id,
                 item.get("id_produto"),

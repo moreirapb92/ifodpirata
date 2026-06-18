@@ -12,7 +12,7 @@ from agent.writer import criar_orcamento
 log = logging.getLogger("importer_online")
 
 # Usa as mesmas configuracoes do sync
-from config.settings import PORTAL_URL, PORTAL_API_KEY
+from config.settings import PORTAL_URL, PORTAL_API_KEY, EMPRESA_SLUG
 
 
 class PortalAPI:

@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Empresas - IfodPirata</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f5f5f5;color:#333}
+.header{background:#2c3e50;color:#fff;padding:20px;text-align:center}
+.header h1{font-size:24px}
+.container{max-width:1200px;margin:20px auto;padding:0 20px}
+.nav-links{display:flex;gap:10px;justify-content:center;margin-bottom:20px;flex-wrap:wrap}
+.nav-links a{padding:8px 16px;background:#ecf0f1;border-radius:4px;text-decoration:none;color:#333;font-size:13px}
+.nav-links a.active{background:#3498db;color:#fff}
+.btn{padding:8px 16px;border:none;border-radius:4px;cursor:pointer;font-weight:600;font-size:13px;transition:opacity .2s}
+.btn:hover{opacity:.85}
+.btn-primary{background:#3498db;color:#fff}
+.btn-success{background:#27ae60;color:#fff}
+.btn-warning{background:#f39c12;color:#fff}
+.btn-danger{background:#e74c3c;color:#fff}
+.btn-sm{padding:5px 10px;font-size:11px}
+table{width:100%;border-collapse:collapse;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+th,td{padding:10px 12px;text-align:left;border-bottom:1px solid #eee;font-size:13px}
+th{background:#f8f9fa;color:#666;font-weight:600;font-size:11px;text-transform:uppercase}
+tr:hover{background:#f8f9fa}
+.topo{display:flex;justify-content:space-between;align-items:center;margin-bottom:15px;flex-wrap:wrap;gap:10px}
+.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700}
+.badge-ativo{background:#d4edda;color:#155724}
+.badge-inativo{background:#f8d7da;color:#721c24}
+.link-loja{font-size:11px;color:#3498db;text-decoration:none}
+.link-loja:hover{text-decoration:underline}
+.api-key{font-family:monospace;font-size:11px;color:#999;word-break:break-all}
+.modal{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.4);z-index:1000;align-items:center;justify-content:center}
+.modal.show{display:flex}
+.modal-content{background:#fff;border-radius:8px;padding:24px;width:90%;max-width:520px;max-height:90vh;overflow-y:auto;box-shadow:0 4px 20px rgba(0,0,0,.2)}
+.modal-content h2{margin-bottom:16px;font-size:18px}
+.modal-content label{display:block;font-size:13px;color:#666;margin-top:10px;margin-bottom:2px}
+.modal-content input{width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:4px;font-size:14px}
+.modal-content .btn-row{display:flex;gap:8px;margin-top:16px}
+.msg{padding:12px 16px;border-radius:6px;margin-bottom:15px;display:none;font-size:13px}
+.msg-success{background:#d4edda;color:#155724;display:block}
+.msg-error{background:#f8d7da;color:#721c24;display:block}
+.empty{text-align:center;padding:40px;color:#999;font-size:14px}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>Empresas</h1>
+  <a href="/admin" style="color:#3498db;text-decoration:none;font-size:14px">&larr; Voltar ao Painel</a>
+</div>
+<div class="container">
+  <div class="nav-links">
+    <a href="/admin">Pedidos</a>
+    <a href="/admin/pedidos-importacao">Importa&ccedil;&atilde;o</a>
+    <a href="/admin/configuracao">Configura&ccedil;&atilde;o</a>
+    <a href="/admin/empresas" class="active">Empresas</a>
+  </div>
+
+  <div id="mensagem" class="msg"></div>
+
+  <div class="topo">
+    <h2 style="font-size:16px">Empresas cadastradas</h2>
+    <button class="btn btn-success" onclick="abrirCriar()">+ Nova Empresa</button>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Nome Fantasia</th>
+        <th>Loja</th>
+        <th>Produtos</th>
+        <th>Pedidos</th>
+        <th>Status</th>
+        <th>API Key</th>
+        <th>A&ccedil;&otilde;es</th>
+      </tr>
+    </thead>
+    <tbody id="tabela-empresas"></tbody>
+  </table>
+  <div class="empty" id="vazio">Nenhuma empresa cadastrada.</div>
+</div>
+
+<div class="modal" id="modal-empresa">
+  <div class="modal-content">
+    <h2 id="modal-titulo">Nova Empresa</h2>
+    <label>Nome Fantasia *</label>
+    <input id="f-nome" placeholder="Ex: Mercadinho Boa Esperanca">
+    <label>Razao Social</label>
+    <input id="f-razao" placeholder="Razao social completa">
+    <label>CNPJ</label>
+    <input id="f-cnpj" placeholder="00.000.000/0000-00">
+    <label>Telefone</label>
+    <input id="f-fone" placeholder="(88) 99999-9999">
+    <label>Cidade</label>
+    <input id="f-cidade" placeholder="Sao Paulo - SP">
+    <label>Endereco</label>
+    <input id="f-end" placeholder="Rua, numero, bairro">
+    <label>Slug (URL da loja)</label>
+    <input id="f-slug" placeholder="mercadinho-boa-esperanca">
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="salvar()">Salvar</button>
+      <button class="btn btn-warning" onclick="fecharModal()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="modal-editar">
+  <div class="modal-content">
+    <h2 id="modal-ed-titulo">Editar Empresa</h2>
+    <input type="hidden" id="e-id">
+    <label>Nome Fantasia *</label>
+    <input id="e-nome">
+    <label>Razao Social</label>
+    <input id="e-razao">
+    <label>CNPJ</label>
+    <input id="e-cnpj">
+    <label>Telefone</label>
+    <input id="e-fone">
+    <label>Cidade</label>
+    <input id="e-cidade">
+    <label>Endereco</label>
+    <input id="e-end">
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="salvarEdicao()">Salvar</button>
+      <button class="btn btn-warning" onclick="fecharModalEditar()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+async function carregar() {
+  var r = await fetch("/api/admin/empresas");
+  var empresas = await r.json();
+  var tbody = document.getElementById("tabela-empresas");
+  var vazio = document.getElementById("vazio");
+  if (!empresas.length) {
+    tbody.innerHTML = "";
+    vazio.style.display = "block";
+    return;
+  }
+  vazio.style.display = "none";
+  tbody.innerHTML = empresas.map(function(e) {
+    var ativo = e.ativo === 1 || e.ativo === true;
+    var lojaUrl = window.location.origin + "/loja/" + e.slug;
+    return '<tr>' +
+      '<td>' + e.id + '</td>' +
+      '<td><strong>' + esc(e.nome_fantasia) + '</strong></td>' +
+      '<td><a href="' + lojaUrl + '" target="_blank" class="link-loja">/' + esc(e.slug) + '</a></td>' +
+      '<td>' + (e.total_produtos || 0) + '</td>' +
+      '<td>' + (e.total_pedidos || 0) + '</td>' +
+      '<td><span class="badge ' + (ativo ? 'badge-ativo' : 'badge-inativo') + '">' + (ativo ? 'Ativo' : 'Inativo') + '</span></td>' +
+      '<td><code class="api-key" onclick="copiarChave(\'' + e.api_key + '\')" title="Clique para copiar">' + e.api_key.slice(0, 12) + '...</code></td>' +
+      '<td>' +
+        '<button class="btn btn-primary btn-sm" onclick="editar(' + e.id + ')">Editar</button> ' +
+        '<button class="btn btn-warning btn-sm" onclick="toggleAtivo(' + e.id + ',' + (ativo ? '0' : '1') + ')">' + (ativo ? 'Desativar' : 'Ativar') + '</button> ' +
+        '<button class="btn btn-danger btn-sm" onclick="regenerarKey(' + e.id + ')">Nova Key</button>' +
+      '</td>' +
+      '</tr>';
+  }).join("");
+}
+
+function esc(s) { return (s || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+
+function abrirCriar() {
+  document.getElementById("f-nome").value = "";
+  document.getElementById("f-razao").value = "";
+  document.getElementById("f-cnpj").value = "";
+  document.getElementById("f-fone").value = "";
+  document.getElementById("f-cidade").value = "";
+  document.getElementById("f-end").value = "";
+  document.getElementById("f-slug").value = "";
+  document.getElementById("modal-titulo").textContent = "Nova Empresa";
+  document.getElementById("modal-empresa").classList.add("show");
+}
+
+function fecharModal() { document.getElementById("modal-empresa").classList.remove("show"); }
+function fecharModalEditar() { document.getElementById("modal-editar").classList.remove("show"); }
+
+async function salvar() {
+  var nome = document.getElementById("f-nome").value.trim();
+  if (!nome) { mostrarMsg("Nome fantasia obrigatorio", "error"); return; }
+  var dados = {
+    nome_fantasia: nome,
+    razao_social: document.getElementById("f-razao").value.trim(),
+    cnpj: document.getElementById("f-cnpj").value.trim(),
+    telefone: document.getElementById("f-fone").value.trim(),
+    cidade: document.getElementById("f-cidade").value.trim(),
+    endereco: document.getElementById("f-end").value.trim(),
+    slug: document.getElementById("f-slug").value.trim() || undefined
+  };
+  var r = await fetch("/api/admin/empresas", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify(dados)
+  });
+  var resp = await r.json();
+  if (resp.success) {
+    fecharModal();
+    mostrarMsg("Empresa criada! API Key: <code>" + resp.empresa.api_key + "</code>", "success");
+    carregar();
+  } else {
+    mostrarMsg(resp.error || "Erro ao criar", "error");
+  }
+}
+
+async function editar(id) {
+  var r = await fetch("/api/admin/empresas");
+  var empresas = await r.json();
+  var e = empresas.find(function(x) { return x.id === id; });
+  if (!e) return;
+  document.getElementById("e-id").value = e.id;
+  document.getElementById("e-nome").value = e.nome_fantasia || "";
+  document.getElementById("e-razao").value = e.razao_social || "";
+  document.getElementById("e-cnpj").value = e.cnpj || "";
+  document.getElementById("e-fone").value = e.telefone || "";
+  document.getElementById("e-cidade").value = e.cidade || "";
+  document.getElementById("e-end").value = e.endereco || "";
+  document.getElementById("modal-ed-titulo").textContent = "Editar: " + e.nome_fantasia;
+  document.getElementById("modal-editar").classList.add("show");
+}
+
+async function salvarEdicao() {
+  var id = document.getElementById("e-id").value;
+  var dados = {
+    nome_fantasia: document.getElementById("e-nome").value.trim(),
+    razao_social: document.getElementById("e-razao").value.trim(),
+    cnpj: document.getElementById("e-cnpj").value.trim(),
+    telefone: document.getElementById("e-fone").value.trim(),
+    cidade: document.getElementById("e-cidade").value.trim(),
+    endereco: document.getElementById("e-end").value.trim()
+  };
+  var r = await fetch("/api/admin/empresas/" + id, {
+    method: "PUT",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify(dados)
+  });
+  var resp = await r.json();
+  if (resp.success) {
+    fecharModalEditar();
+    mostrarMsg("Empresa atualizada", "success");
+    carregar();
+  } else {
+    mostrarMsg(resp.error || "Erro", "error");
+  }
+}
+
+async function toggleAtivo(id, ativo) {
+  await fetch("/api/admin/empresas/" + id, {
+    method: "PUT",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ ativo: ativo })
+  });
+  carregar();
+}
+
+async function regenerarKey(id) {
+  if (!confirm("Gerar nova API Key? A chave antiga deixara de funcionar.")) return;
+  var r = await fetch("/api/admin/empresas/" + id + "/regenerate-key", { method: "POST" });
+  var resp = await r.json();
+  if (resp.success) {
+    mostrarMsg("Nova API Key: <code>" + resp.api_key + "</code>", "success");
+    carregar();
+  }
+}
+
+function copiarChave(key) {
+  navigator.clipboard.writeText(key).then(function() {
+    mostrarMsg("API Key copiada!", "success");
+  });
+}
+
+function mostrarMsg(msg, tipo) {
+  var div = document.getElementById("mensagem");
+  div.innerHTML = msg;
+  div.className = "msg msg-" + tipo;
+  setTimeout(function() { div.style.display = "none"; }, 6000);
+}
+
+carregar();
+</script>
+</body>
+</html>

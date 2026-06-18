@@ -33,6 +33,11 @@ def pagina_importacao():
     return render_template("admin_importacao.html", MODO_ONLINE=str(MODO_ONLINE).lower())
 
 
+@admin_bp.route("/admin/empresas")
+def pagina_empresas():
+    return render_template("admin_empresas.html")
+
+
 # ===== API: Config =====
 
 @admin_bp.route("/api/admin/config", methods=["GET"])
@@ -234,6 +239,56 @@ def limpar_pedidos_antigos():
     db.commit()
     afetados = db.total_changes
     return jsonify({"ok": True, "cancelados": afetados})
+
+
+# ===== API: Empresas =====
+
+@admin_bp.route("/api/admin/empresas", methods=["GET"])
+def listar_empresas_api():
+    from portal.empresa_helper import listar_empresas
+    return jsonify(listar_empresas())
+
+
+@admin_bp.route("/api/admin/empresas", methods=["POST"])
+def criar_empresa_api():
+    from portal.empresa_helper import criar_empresa
+    data = request.json
+    if not data or not data.get("nome_fantasia", "").strip():
+        return jsonify({"success": False, "error": "Nome fantasia obrigatorio"}), 400
+    try:
+        empresa = criar_empresa(
+            nome_fantasia=data["nome_fantasia"].strip(),
+            razao_social=data.get("razao_social", "").strip(),
+            cnpj=data.get("cnpj", "").strip(),
+            telefone=data.get("telefone", "").strip(),
+            cidade=data.get("cidade", "").strip(),
+            endereco=data.get("endereco", "").strip(),
+            slug=data.get("slug", "").strip() or None,
+        )
+        return jsonify({"success": True, "empresa": empresa}), 201
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 400
+
+
+@admin_bp.route("/api/admin/empresas/<int:empresa_id>", methods=["PUT"])
+def atualizar_empresa_api(empresa_id):
+    from portal.empresa_helper import atualizar_empresa
+    data = request.json
+    if not data:
+        return jsonify({"success": False, "error": "Dados obrigatorios"}), 400
+    empresa = atualizar_empresa(empresa_id, data)
+    if not empresa:
+        return jsonify({"success": False, "error": "Empresa nao encontrada"}), 404
+    return jsonify({"success": True, "empresa": empresa})
+
+
+@admin_bp.route("/api/admin/empresas/<int:empresa_id>/regenerate-key", methods=["POST"])
+def regenerar_key_api(empresa_id):
+    from portal.empresa_helper import regenerar_api_key
+    nova_key = regenerar_api_key(empresa_id)
+    if not nova_key:
+        return jsonify({"success": False, "error": "Empresa nao encontrada"}), 404
+    return jsonify({"success": True, "api_key": nova_key})
 
 
 # ===== Helpers =====

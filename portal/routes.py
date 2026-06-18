@@ -22,19 +22,32 @@ AGENT_API_KEY = os.getenv("PORTAL_API_KEY", "agent-api-key-change-me")
 # ----- Authentication -----
 def check_api_key():
     auth = request.headers.get("X-API-Key", "")
-    if auth != AGENT_API_KEY:
-        return False
-    return True
+    if auth == AGENT_API_KEY:
+        return True
+    from portal.empresa_helper import get_empresa_by_api_key
+    empresa = get_empresa_by_api_key(auth)
+    if empresa:
+        g.empresa_id = empresa["id"]
+        g.empresa_slug = empresa["slug"]
+        return True
+    return False
 
 
 def require_api_key(f):
     from functools import wraps
     @wraps(f)
     def decorated(*args, **kwargs):
-        if not check_api_key() and request.method != "GET":
+        if not check_api_key():
             return jsonify({"error": "Unauthorized"}), 401
         return f(*args, **kwargs)
     return decorated
+
+
+def _get_empresa_id_from_auth():
+    """Retorna empresa_id do header X-API-Key (para sync routes)."""
+    if hasattr(g, "empresa_id") and g.empresa_id:
+        return g.empresa_id
+    return 1
 
 
 # ----- Agent: Sync data from Firebird -----
@@ -138,57 +151,58 @@ def sync_full():
     data = request.json
     if not data:
         return jsonify({"error": "No data"}), 400
+    empresa_id = _get_empresa_id_from_auth()
     db = get_db()
     # Emitente (sanitizado)
     emit = data.get("emitente")
     if emit:
-        db.execute("DELETE FROM emitente")
+        db.execute("DELETE FROM emitente WHERE empresa_id = ?", [empresa_id])
         fantasia = _sanitizar_emitente(emit.get("FANTASIA")) or _sanitizar_emitente(emit.get("RAZ_SOCIAL")) or "Minha Loja"
-        db.execute("""INSERT INTO emitente (id, fantasia, razao_social, cnpj, ie, municipio, uf, logradouro, bairro, telefone, email)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (1, fantasia, emit.get("RAZ_SOCIAL"), emit.get("CNPJ"),
+        db.execute("""INSERT INTO emitente (id, empresa_id, fantasia, razao_social, cnpj, ie, municipio, uf, logradouro, bairro, telefone, email)
+            VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (empresa_id, fantasia, emit.get("RAZ_SOCIAL"), emit.get("CNPJ"),
              emit.get("INSC_EST"), emit.get("MUNICIPIO"), emit.get("UF"),
              emit.get("ENDER"), emit.get("BAIRRO"), emit.get("TELEFONE"), emit.get("EMAIL")))
     # Produtos
-    db.execute("DELETE FROM produtos")
+    db.execute("DELETE FROM produtos WHERE empresa_id = ?", [empresa_id])
     for p in data.get("produtos", []):
-        db.execute("""INSERT INTO produtos (id_produto, produto, gtin, ncm, unidade,
+        db.execute("""INSERT INTO produtos (id_produto, empresa_id, produto, gtin, ncm, unidade,
             valor_venda, valor_atacado, valor_aprazo, estoque,
             grupo, subgrupo, marca, nome_grupo, nome_subgrupo, nome_marca, foto, status)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (p.get("ID_PRODUTO"), p.get("PRODUTO"), p.get("GTIN"), p.get("NCM"),
+            (p.get("ID_PRODUTO"), empresa_id, p.get("PRODUTO"), p.get("GTIN"), p.get("NCM"),
              p.get("UNIDADE"), p.get("VALOR_VENDA"), p.get("VALOR_ATACADO"),
              p.get("VALOR_APRAZO"), p.get("ESTOQUE"),
              p.get("GRUPO"), p.get("SUBGRUPO"), p.get("MARCA"),
              p.get("NOME_GRUPO"), p.get("NOME_SUBGRUPO"), p.get("NOME_MARCA"),
              p.get("FOTO"), p.get("STATUS")))
     # Grupos
-    db.execute("DELETE FROM grupos")
+    db.execute("DELETE FROM grupos WHERE empresa_id = ?", [empresa_id])
     for g in data.get("grupos", []):
-        db.execute("INSERT INTO grupos (id_grupo, grupo, desconto) VALUES (?, ?, ?)",
-                   (g.get("ID"), g.get("GRUPO"), g.get("DESCONTO")))
-    db.execute("DELETE FROM subgrupos")
+        db.execute("INSERT INTO grupos (id_grupo, empresa_id, grupo, desconto) VALUES (?, ?, ?, ?)",
+                   (g.get("ID"), empresa_id, g.get("GRUPO"), g.get("DESCONTO")))
+    db.execute("DELETE FROM subgrupos WHERE empresa_id = ?", [empresa_id])
     for s in data.get("subgrupos", []):
-        db.execute("INSERT INTO subgrupos (id_subgrupo, subgrupo, id_grupo) VALUES (?, ?, ?)",
-                   (s.get("ID"), s.get("SUBGRUPO"), s.get("ID_GRUPO")))
-    db.execute("DELETE FROM marcas")
+        db.execute("INSERT INTO subgrupos (id_subgrupo, empresa_id, subgrupo, id_grupo) VALUES (?, ?, ?, ?)",
+                   (s.get("ID"), empresa_id, s.get("SUBGRUPO"), s.get("ID_GRUPO")))
+    db.execute("DELETE FROM marcas WHERE empresa_id = ?", [empresa_id])
     for m in data.get("marcas", []):
-        db.execute("INSERT INTO marcas (id_marca, marca) VALUES (?, ?)",
-                   (m.get("ID"), m.get("MARCA")))
+        db.execute("INSERT INTO marcas (id_marca, empresa_id, marca) VALUES (?, ?, ?)",
+                   (m.get("ID"), empresa_id, m.get("MARCA")))
     # Clientes
-    db.execute("DELETE FROM clientes")
+    db.execute("DELETE FROM clientes WHERE empresa_id = ?", [empresa_id])
     for c in data.get("clientes", []):
-        db.execute("""INSERT INTO clientes (id_cliente, cliente, cpf_cnpj, ie_rg,
+        db.execute("""INSERT INTO clientes (id_cliente, empresa_id, cliente, cpf_cnpj, ie_rg,
             logradouro, numero, bairro, municipio, uf, cep,
             fone, celular, email, status, limite_credito)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (c.get("ID_CLIENTE"), c.get("CLIENTE"), c.get("CPF_CNPJ"),
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (c.get("ID_CLIENTE"), empresa_id, c.get("CLIENTE"), c.get("CPF_CNPJ"),
              c.get("IE_RG"), c.get("LOGRADOURO"), c.get("NUMERO"),
              c.get("BAIRRO"), c.get("MUNICIPIO"), c.get("UF"), c.get("CEP"),
              c.get("FONE"), c.get("CELULAR"), c.get("EMAIL"),
              c.get("STATUS"), c.get("LMTE_CREDITO")))
     db.commit()
-    return jsonify({"ok": True, "produtos": len(data.get("produtos", [])), "clientes": len(data.get("clientes", []))})
+    return jsonify({"ok": True, "empresa_id": empresa_id, "produtos": len(data.get("produtos", [])), "clientes": len(data.get("clientes", []))})
 
 
 # ----- Portal: Order management -----
@@ -283,8 +297,9 @@ def recusar_pedido(pedido_id):
 @api.route("/sync/pedidos-pendentes", methods=["GET"])
 @require_api_key
 def pedidos_pendentes():
+    empresa_id = _get_empresa_id_from_auth()
     db = get_db()
-    rows = db.execute("SELECT * FROM pedidos WHERE status = 'ACEITO' AND sincronizado = 0 ORDER BY criado_em").fetchall()
+    rows = db.execute("SELECT * FROM pedidos WHERE empresa_id = ? AND status = 'ACEITO' AND sincronizado = 0 ORDER BY criado_em", [empresa_id]).fetchall()
     pedidos = []
     for r in rows:
         p = dict(r)

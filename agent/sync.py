@@ -14,7 +14,7 @@ import logging
 import urllib.request
 import urllib.error
 
-from config.settings import PORTAL_URL, PORTAL_API_KEY, SYNC_INTERVAL_SECONDS
+from config.settings import PORTAL_URL, PORTAL_API_KEY, SYNC_INTERVAL_SECONDS, EMPRESA_SLUG
 from agent.reader import exportar_tudo
 from agent.utils import sanitize_for_json
 from agent.db import query
@@ -129,6 +129,7 @@ def sync_data_to_portal():
         log.info(f"Lidos do Firebird: {total_firebird_ativos} produtos ({ignorados} ignorados), {clis} clientes, {grps} grupos, {subg} subgrupos, {marcas} marcas, {vends} vendedores")
         if data.get("emitente"):
             log.info(f"Emitente: {data['emitente'].get('FANTASIA', 'N/A')}")
+        data["empresa_slug"] = EMPRESA_SLUG
         result = api_post("/api/sync/full", data)
         if result:
             log.info(f"Sync enviado com sucesso: {result.get('produtos', 0)} produtos, {result.get('clientes', 0)} clientes")

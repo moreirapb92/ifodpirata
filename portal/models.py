@@ -1,5 +1,8 @@
 import sqlite3
 import os
+import logging
+
+log = logging.getLogger("models")
 
 DB_PATH = os.getenv("SQLITE_DB_PATH", os.path.join(os.path.dirname(__file__), "..", "data", "portal.db"))
 
@@ -26,8 +29,23 @@ def coluna_existe(conn, tabela, coluna):
 def init_db():
     conn = get_db()
     conn.executescript("""
+        CREATE TABLE IF NOT EXISTS empresas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome_fantasia TEXT NOT NULL DEFAULT '',
+            razao_social TEXT NOT NULL DEFAULT '',
+            cnpj TEXT NOT NULL DEFAULT '',
+            telefone TEXT NOT NULL DEFAULT '',
+            cidade TEXT NOT NULL DEFAULT '',
+            endereco TEXT NOT NULL DEFAULT '',
+            slug TEXT UNIQUE NOT NULL,
+            api_key TEXT UNIQUE NOT NULL,
+            ativo INTEGER NOT NULL DEFAULT 1,
+            data_cadastro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
         CREATE TABLE IF NOT EXISTS emitente (
             id INTEGER PRIMARY KEY,
+            empresa_id INTEGER NOT NULL DEFAULT 1,
             fantasia TEXT,
             razao_social TEXT,
             cnpj TEXT,
@@ -42,6 +60,7 @@ def init_db():
 
         CREATE TABLE IF NOT EXISTS produtos (
             id INTEGER PRIMARY KEY,
+            empresa_id INTEGER NOT NULL DEFAULT 1,
             id_produto INTEGER,
             produto TEXT,
             gtin TEXT,
@@ -64,6 +83,7 @@ def init_db():
 
         CREATE TABLE IF NOT EXISTS grupos (
             id INTEGER PRIMARY KEY,
+            empresa_id INTEGER NOT NULL DEFAULT 1,
             id_grupo INTEGER,
             grupo TEXT,
             desconto REAL DEFAULT 0
@@ -71,6 +91,7 @@ def init_db():
 
         CREATE TABLE IF NOT EXISTS subgrupos (
             id INTEGER PRIMARY KEY,
+            empresa_id INTEGER NOT NULL DEFAULT 1,
             id_subgrupo INTEGER,
             subgrupo TEXT,
             id_grupo INTEGER
@@ -78,12 +99,14 @@ def init_db():
 
         CREATE TABLE IF NOT EXISTS marcas (
             id INTEGER PRIMARY KEY,
+            empresa_id INTEGER NOT NULL DEFAULT 1,
             id_marca INTEGER,
             marca TEXT
         );
 
         CREATE TABLE IF NOT EXISTS clientes (
             id INTEGER PRIMARY KEY,
+            empresa_id INTEGER NOT NULL DEFAULT 1,
             id_cliente INTEGER,
             cliente TEXT,
             cpf_cnpj TEXT,
@@ -104,6 +127,7 @@ def init_db():
 
         CREATE TABLE IF NOT EXISTS pedidos (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            empresa_id INTEGER NOT NULL DEFAULT 1,
             id_externo TEXT UNIQUE,
             numero INTEGER,
             id_cliente INTEGER,
@@ -123,6 +147,7 @@ def init_db():
 
         CREATE TABLE IF NOT EXISTS pedido_itens (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            empresa_id INTEGER NOT NULL DEFAULT 1,
             id_pedido INTEGER NOT NULL,
             id_produto INTEGER,
             produto TEXT,
@@ -134,53 +159,71 @@ def init_db():
         );
 
         CREATE TABLE IF NOT EXISTS config (
-            chave TEXT PRIMARY KEY,
-            valor TEXT NOT NULL
+            chave TEXT NOT NULL,
+            empresa_id INTEGER NOT NULL DEFAULT 1,
+            valor TEXT NOT NULL,
+            PRIMARY KEY (chave, empresa_id)
         );
     """)
 
     # Migrations: add columns that might not exist
-    migracoes_pedidos = [
-        ("fone", "ALTER TABLE pedidos ADD COLUMN fone TEXT"),
-        ("importado", "ALTER TABLE pedidos ADD COLUMN importado INTEGER DEFAULT 0"),
-        ("orcamento_id", "ALTER TABLE pedidos ADD COLUMN orcamento_id INTEGER"),
-        ("data_importacao", "ALTER TABLE pedidos ADD COLUMN data_importacao TIMESTAMP"),
-        ("troco_para", "ALTER TABLE pedidos ADD COLUMN troco_para REAL"),
-        ("tipo_cartao", "ALTER TABLE pedidos ADD COLUMN tipo_cartao TEXT"),
-        ("forma_pagamento_detalhe", "ALTER TABLE pedidos ADD COLUMN forma_pagamento_detalhe TEXT"),
-        ("logradouro_entrega", "ALTER TABLE pedidos ADD COLUMN logradouro_entrega TEXT"),
-        ("numero_entrega", "ALTER TABLE pedidos ADD COLUMN numero_entrega TEXT"),
-        ("bairro_entrega", "ALTER TABLE pedidos ADD COLUMN bairro_entrega TEXT"),
-        ("complemento", "ALTER TABLE pedidos ADD COLUMN complemento TEXT"),
-        ("id_orcamento_firebird", "ALTER TABLE pedidos ADD COLUMN id_orcamento_firebird INTEGER"),
-        ("numero_orcamento", "ALTER TABLE pedidos ADD COLUMN numero_orcamento INTEGER"),
-        ("cidade", "ALTER TABLE pedidos ADD COLUMN cidade TEXT"),
-        ("referencia", "ALTER TABLE pedidos ADD COLUMN referencia TEXT"),
-        ("erro_importacao", "ALTER TABLE pedidos ADD COLUMN erro_importacao TEXT"),
-        ("unidade", "ALTER TABLE pedido_itens ADD COLUMN unidade TEXT DEFAULT 'UN'"),
+    migracoes_empresa = [
+        ("empresa_id", "ALTER TABLE emitente ADD COLUMN empresa_id INTEGER NOT NULL DEFAULT 1"),
+        ("empresa_id", "ALTER TABLE produtos ADD COLUMN empresa_id INTEGER NOT NULL DEFAULT 1"),
+        ("empresa_id", "ALTER TABLE grupos ADD COLUMN empresa_id INTEGER NOT NULL DEFAULT 1"),
+        ("empresa_id", "ALTER TABLE subgrupos ADD COLUMN empresa_id INTEGER NOT NULL DEFAULT 1"),
+        ("empresa_id", "ALTER TABLE marcas ADD COLUMN empresa_id INTEGER NOT NULL DEFAULT 1"),
+        ("empresa_id", "ALTER TABLE clientes ADD COLUMN empresa_id INTEGER NOT NULL DEFAULT 1"),
+        ("empresa_id", "ALTER TABLE pedidos ADD COLUMN empresa_id INTEGER NOT NULL DEFAULT 1"),
+        ("empresa_id", "ALTER TABLE pedido_itens ADD COLUMN empresa_id INTEGER NOT NULL DEFAULT 1"),
     ]
-    for col, sql in migracoes_pedidos:
+    # These need special handling because config has composite PK
+    if not coluna_existe(conn, "config", "empresa_id"):
         try:
-            if not coluna_existe(conn, "pedidos", col):
-                conn.execute(sql)
-        except Exception:
-            pass
+            conn.execute("DROP TABLE IF EXISTS config")
+            conn.executescript("""
+                CREATE TABLE config (
+                    chave TEXT NOT NULL,
+                    empresa_id INTEGER NOT NULL DEFAULT 1,
+                    valor TEXT NOT NULL,
+                    PRIMARY KEY (chave, empresa_id)
+                );
+            """)
+        except Exception as e:
+            log.warning(f"Could not migrate config table: {e}")
 
-    # Migrations: emitente
-    migracoes_emitente = [
-        ("chave_pix", "ALTER TABLE emitente ADD COLUMN chave_pix TEXT"),
-        ("nome_recebedor_pix", "ALTER TABLE emitente ADD COLUMN nome_recebedor_pix TEXT"),
-        ("whatsapp", "ALTER TABLE emitente ADD COLUMN whatsapp TEXT"),
-        ("obs_pagamento_pix", "ALTER TABLE emitente ADD COLUMN obs_pagamento_pix TEXT"),
-    ]
-    for col, sql in migracoes_emitente:
-        try:
-            if not coluna_existe(conn, "emitente", col):
+    for col, sql in migracoes_empresa:
+        tabela = sql.split()[5]
+        if not coluna_existe(conn, tabela, col):
+            try:
                 conn.execute(sql)
-        except Exception:
-            pass
+            except Exception as e:
+                log.warning(f"Could not add {col} to {tabela}: {e}")
 
-    # Config defaults
+    # Create default empresa if none exists
+    default_empresa = conn.execute("SELECT id FROM empresas WHERE slug = 'demo'").fetchone()
+    if not default_empresa:
+        import uuid
+        conn.execute(
+            "INSERT INTO empresas (nome_fantasia, razao_social, slug, api_key, ativo) VALUES (?, ?, ?, ?, 1)",
+            ("Loja Demo", "Loja Demo Ltda", "demo", str(uuid.uuid4()))
+        )
+        conn.commit()
+        default_empresa = conn.execute("SELECT id FROM empresas WHERE slug = 'demo'").fetchone()
+
+    empresa_id = default_empresa["id"]
+
+    # Migrate existing data to default empresa
+    for tabela in ("emitente", "produtos", "grupos", "subgrupos", "marcas", "clientes", "pedidos", "pedido_itens"):
+        if coluna_existe(conn, tabela, "empresa_id"):
+            conn.execute(f"UPDATE {tabela} SET empresa_id = ? WHERE empresa_id IS NULL OR empresa_id = 0", [empresa_id])
+
+    # Migrate config
+    has_config_empresa = coluna_existe(conn, "config", "empresa_id")
+    if has_config_empresa:
+        conn.execute("UPDATE config SET empresa_id = ? WHERE empresa_id IS NULL OR empresa_id = 0", [empresa_id])
+
+    # Config defaults per empresa
     config_defaults = {
         "dry_run": "true",
         "destino_pedido": "ORCAMENTO",
@@ -188,15 +231,20 @@ def init_db():
         "modo_teste": "true",
     }
     for chave, valor in config_defaults.items():
-        conn.execute(
-            "INSERT OR IGNORE INTO config (chave, valor) VALUES (?, ?)",
-            (chave, valor),
-        )
+        try:
+            conn.execute(
+                "INSERT OR IGNORE INTO config (chave, empresa_id, valor) VALUES (?, ?, ?)",
+                (chave, empresa_id, valor),
+            )
+        except Exception:
+            # Old format without empresa_id
+            try:
+                conn.execute(
+                    "INSERT OR IGNORE INTO config (chave, valor) VALUES (?, ?)",
+                    (chave, valor),
+                )
+            except Exception:
+                pass
 
     conn.commit()
     conn.close()
-
-
-if __name__ == "__main__":
-    init_db()
-    print("Database initialized with migrations.")
