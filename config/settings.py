@@ -34,7 +34,22 @@ PORTAL_SECRET_KEY = os.getenv("PORTAL_SECRET_KEY", "ifodpirata-dev-key-change-in
 
 # Modo online: quando True, o portal NAO tenta conectar no Firebird
 # Toda importacao de pedidos para ORCAMENTO/DAV deve ser feita pelo agente local
-MODO_ONLINE = os.getenv("MODO_ONLINE", "false").lower() in ("true", "1", "sim", "yes")
+#
+# Auto-detect: se a env var RENDER estiver presente (Render sempre define),
+#              ou se fdb nao estiver instalado, considera MODO_ONLINE=true
+_MODO_ONLINE_ENV = os.getenv("MODO_ONLINE", None)
+if _MODO_ONLINE_ENV is not None:
+    MODO_ONLINE = _MODO_ONLINE_ENV.lower() in ("true", "1", "sim", "yes")
+else:
+    # Auto-detect: Render ou fdb ausente
+    if os.getenv("RENDER"):
+        MODO_ONLINE = True
+    else:
+        try:
+            import fdb
+            MODO_ONLINE = False
+        except ImportError:
+            MODO_ONLINE = True
 
 # Sync
 SYNC_INTERVAL_SECONDS = int(os.getenv("SYNC_INTERVAL_SECONDS", "60"))

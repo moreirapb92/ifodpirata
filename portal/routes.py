@@ -2,10 +2,18 @@ import sqlite3
 import json
 import os
 from flask import Blueprint, request, jsonify, g, render_template, redirect, url_for, flash
+from werkzeug.exceptions import HTTPException
 
 from portal.models import get_db, init_db
 
 api = Blueprint("api", __name__, url_prefix="/api")
+
+
+@api.errorhandler(Exception)
+def handle_api_error(e):
+    if isinstance(e, HTTPException):
+        return jsonify({"error": e.description}), e.code
+    return jsonify({"error": str(e)}), 500
 
 # API Key for agent authentication
 AGENT_API_KEY = os.getenv("PORTAL_API_KEY", "agent-api-key-change-me")

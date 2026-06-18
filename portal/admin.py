@@ -4,6 +4,7 @@ Blueprint com rotas administrativas: configuracao e importacao de pedidos.
 import datetime
 import logging
 from flask import Blueprint, request, jsonify, render_template
+from werkzeug.exceptions import HTTPException
 
 from portal.models import get_db
 from config.settings import MODO_ONLINE
@@ -11,6 +12,13 @@ from config.settings import MODO_ONLINE
 log = logging.getLogger("admin")
 
 admin_bp = Blueprint("admin", __name__)
+
+
+@admin_bp.errorhandler(Exception)
+def handle_admin_error(e):
+    if isinstance(e, HTTPException):
+        return jsonify({"error": e.description}), e.code
+    return jsonify({"error": str(e)}), 500
 
 
 # ===== Paginas =====
