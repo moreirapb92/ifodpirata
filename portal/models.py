@@ -247,4 +247,54 @@ def init_db():
                 pass
 
     conn.commit()
+
+    # Migra estrutura do banco (adiciona colunas faltantes)
+    migrate_db(conn)
+
     conn.close()
+
+
+def _migrar_colunas(conn, tabela, colunas):
+    """Adiciona colunas faltantes em uma tabela de forma idempotente."""
+    for coluna, definicao in colunas:
+        if not coluna_existe(conn, tabela, coluna):
+            try:
+                conn.execute(f"ALTER TABLE {tabela} ADD COLUMN {coluna} {definicao}")
+                log.info(f"Migracao: coluna '{coluna}' adicionada em '{tabela}'")
+            except Exception as e:
+                log.warning(f"Migracao: erro ao adicionar '{coluna}' em '{tabela}': {e}")
+
+
+def migrate_db(conn):
+    """Migra estrutura do banco adicionando colunas faltantes sem apagar dados."""
+
+    # Colunas da tabela pedidos
+    _migrar_colunas(conn, "pedidos", [
+        ("logradouro_entrega", "TEXT DEFAULT ''"),
+        ("numero_entrega", "TEXT DEFAULT ''"),
+        ("bairro_entrega", "TEXT DEFAULT ''"),
+        ("complemento", "TEXT DEFAULT ''"),
+        ("cidade", "TEXT DEFAULT ''"),
+        ("referencia", "TEXT DEFAULT ''"),
+        ("forma_pagamento_detalhe", "TEXT DEFAULT ''"),
+        ("troco_para", "TEXT DEFAULT ''"),
+        ("tipo_cartao", "TEXT DEFAULT ''"),
+        ("precisa_troco", "INTEGER DEFAULT 0"),
+        ("dados_pix", "TEXT"),
+        ("status_importacao", "TEXT"),
+        ("orcamento_id", "INTEGER"),
+        ("numero_orcamento", "INTEGER"),
+        ("id_orcamento_firebird", "INTEGER"),
+        ("numero_dav", "INTEGER"),
+        ("importado", "INTEGER DEFAULT 0"),
+        ("importado_em", "TEXT"),
+        ("erro_importacao", "TEXT"),
+        ("data_importacao", "TEXT"),
+    ])
+
+    # Colunas da tabela pedido_itens
+    _migrar_colunas(conn, "pedido_itens", [
+        ("unidade", "TEXT DEFAULT 'UN'"),
+    ])
+
+    conn.commit()
