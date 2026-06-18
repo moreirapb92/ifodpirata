@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Configura&ccedil;&atilde;o - IfodPirata</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; color: #333; }
+        .header { background: #2c3e50; color: white; padding: 20px; text-align: center; }
+        .header h1 { font-size: 24px; }
+        .header a { color: #3498db; text-decoration: none; font-size: 14px; }
+        .container { max-width: 700px; margin: 20px auto; padding: 0 20px; }
+        .card { background: white; border-radius: 8px; padding: 25px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .card h2 { margin-bottom: 20px; font-size: 18px; color: #2c3e50; }
+        .form-group { margin-bottom: 20px; }
+        .form-group label { display: block; margin-bottom: 5px; font-weight: 600; font-size: 14px; color: #555; }
+        .form-group .desc { font-size: 12px; color: #999; margin-bottom: 5px; }
+        .form-group select, .form-group input { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; background: white; }
+        .btn { padding: 12px 24px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: 14px; }
+        .btn-primary { background: #3498db; color: white; width: 100%; }
+        .btn-primary:hover { background: #2980b9; }
+        .msg { padding: 15px; border-radius: 4px; margin-bottom: 15px; display: none; }
+        .msg-success { background: #d4edda; color: #155724; display: block; }
+        .msg-error { background: #f8d7da; color: #721c24; display: block; }
+        .voltar { display: block; text-align: center; margin: 20px 0; }
+        .voltar a { color: #3498db; }
+        .nav-links { display: flex; gap: 10px; justify-content: center; margin-bottom: 20px; flex-wrap: wrap; }
+        .nav-links a { padding: 8px 16px; background: #ecf0f1; border-radius: 4px; text-decoration: none; color: #333; font-size: 13px; }
+        .nav-links a.active { background: #3498db; color: white; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Configura&ccedil;&atilde;o do Agente</h1>
+        <a href="/">&larr; Voltar ao Painel</a>
+    </div>
+    <div class="container">
+        <div class="nav-links">
+            <a href="/admin">Pedidos</a>
+            <a href="/admin/pedidos-importacao">Importa&ccedil;&atilde;o</a>
+            <a href="/admin/configuracao" class="active">Configura&ccedil;&atilde;o</a>
+        </div>
+
+        <div id="mensagem" class="msg"></div>
+
+        <div class="card">
+            <h2>Configura&ccedil;&otilde;es do Agente</h2>
+            <p style="font-size:13px;color:#999;margin-bottom:20px;">As altera&ccedil;&otilde;es entram em vigor no pr&oacute;ximo ciclo de sincroniza&ccedil;&atilde;o.</p>
+
+            <div class="form-group">
+                <label>DRY RUN</label>
+                <div class="desc">Quando ativado, o agente apenas simula a importa&ccedil;&atilde;o sem gravar no Firebird.</div>
+                <select id="dry_run">
+                    <option value="true">Ativado (apenas simula&ccedil;&atilde;o)</option>
+                    <option value="false">Desativado (grava no Firebird)</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Destino do Pedido</label>
+                <div class="desc">Tabela no Firebird onde o pedido ser&aacute; gravado.</div>
+                <select id="destino_pedido">
+                    <option value="ORCAMENTO">ORCAMENTO (Or&ccedil;amento Livre)</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Intervalo de Sincroniza&ccedil;&atilde;o (segundos)</label>
+                <div class="desc">Tempo entre cada ciclo de sincroniza&ccedil;&atilde;o de produtos.</div>
+                <input type="number" id="sync_interval" min="10" max="3600">
+            </div>
+
+            <div class="form-group">
+                <label>Modo de Teste</label>
+                <div class="desc">Em modo teste, pedidos n&atilde;o s&atilde;o importados automaticamente.</div>
+                <select id="modo_teste">
+                    <option value="true">Ativado (importa&ccedil;&atilde;o manual)</option>
+                    <option value="false">Desativado (importa&ccedil;&atilde;o autom&aacute;tica)</option>
+                </select>
+            </div>
+
+            <button class="btn btn-primary" onclick="salvar()">Salvar Configura&ccedil;&otilde;es</button>
+        </div>
+    </div>
+
+    <script>
+        async function carregar() {
+            const res = await fetch('/api/admin/config');
+            const config = await res.json();
+            document.getElementById('dry_run').value = config.dry_run || 'true';
+            document.getElementById('destino_pedido').value = config.destino_pedido || 'ORCAMENTO';
+            document.getElementById('sync_interval').value = config.sync_interval || '60';
+            document.getElementById('modo_teste').value = config.modo_teste || 'true';
+        }
+
+        async function salvar() {
+            const data = {
+                dry_run: document.getElementById('dry_run').value,
+                destino_pedido: document.getElementById('destino_pedido').value,
+                sync_interval: document.getElementById('sync_interval').value,
+                modo_teste: document.getElementById('modo_teste').value,
+            };
+            try {
+                const res = await fetch('/api/admin/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data),
+                });
+                const result = await res.json();
+                if (result.ok) {
+                    mostrarMsg('Configura&ccedil;&otilde;es salvas com sucesso!', 'success');
+                } else {
+                    mostrarMsg('Erro ao salvar: ' + (result.error || 'Erro desconhecido'), 'error');
+                }
+            } catch (e) {
+                mostrarMsg('Erro de conex&atilde;o', 'error');
+            }
+        }
+
+        function mostrarMsg(msg, tipo) {
+            const div = document.getElementById('mensagem');
+            div.innerHTML = msg;
+            div.className = 'msg msg-' + tipo;
+            setTimeout(() => { div.style.display = 'none'; }, 4000);
+        }
+
+        carregar();
+    </script>
+</body>
+</html>

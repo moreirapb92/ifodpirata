@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Importação de Pedidos - IfodPirata</title>
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f5f5f5;color:#333}
+        .header{background:#2c3e50;color:#fff;padding:20px;text-align:center}
+        .header h1{font-size:24px}
+        .header a{color:#3498db;text-decoration:none;font-size:14px}
+        .container{max-width:1100px;margin:20px auto;padding:0 20px}
+        .nav-links{display:flex;gap:10px;justify-content:center;margin-bottom:20px;flex-wrap:wrap}
+        .nav-links a{padding:8px 16px;background:#ecf0f1;border-radius:4px;text-decoration:none;color:#333;font-size:13px}
+        .nav-links a.active{background:#3498db;color:#fff}
+        .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:20px}
+        .stat{background:#fff;border-radius:8px;padding:15px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+        .stat .num{font-size:28px;font-weight:700}
+        .stat .lab{font-size:11px;color:#999;text-transform:uppercase;margin-top:2px}
+        .num-green{color:#27ae60}
+        .num-blue{color:#3498db}
+        .num-orange{color:#e67e22}
+        .num-gray{color:#999}
+        .num-red{color:#e74c3c}
+        .pedido{background:#fff;border-radius:8px;padding:20px;margin-bottom:15px;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+        .pedido .hdr{display:flex;justify-content:space-between;align-items:start;flex-wrap:wrap;gap:10px}
+        .pedido .numero{font-size:17px;font-weight:700;color:#2c3e50}
+        .pedido .info{color:#666;font-size:13px;margin:2px 0}
+        .pedido .valor{font-size:20px;font-weight:700;color:#27ae60}
+        .badge{display:inline-block;padding:3px 10px;border-radius:10px;font-size:11px;font-weight:700}
+        .badge-ACEITO{background:#d4edda;color:#155724}
+        .badge-IMPORTADO{background:#cce5ff;color:#004085}
+        .badge-IGNORADO{background:#fef3cd;color:#856404}
+        .badge-CANCELADO{background:#f8d7da;color:#721c24}
+        .badge-RECUSADO{background:#f8d7da;color:#721c24}
+        .tag{padding:2px 8px;border-radius:4px;font-size:11px;margin-left:5px}
+        .tag-importado{background:#cce5ff;color:#004085}
+        .tag-pendente{background:#fff3cd;color:#856404}
+        .acoes{margin-top:12px;display:flex;gap:6px;flex-wrap:wrap}
+        .btn{padding:7px 14px;border:none;border-radius:4px;cursor:pointer;font-weight:500;font-size:12px;transition:opacity .2s}
+        .btn:hover{opacity:.85}
+        .btn-sm{padding:5px 10px;font-size:11px}
+        .btn-primary{background:#3498db;color:#fff}
+        .btn-success{background:#27ae60;color:#fff}
+        .btn-warning{background:#f39c12;color:#fff}
+        .btn-danger{background:#e74c3c;color:#fff}
+        .btn:disabled{opacity:.4;cursor:not-allowed}
+        .msg{padding:12px 16px;border-radius:6px;margin-bottom:15px;display:none;font-size:13px;line-height:1.5}
+        .msg-success{background:#d4edda;color:#155724;display:block}
+        .msg-error{background:#f8d7da;color:#721c24;display:block}
+        .msg-info{background:#d1ecf1;color:#0c5460;display:block}
+        .simul-box{margin-top:10px;padding:12px;background:#f8f9fa;border-radius:6px;display:none;font-size:13px}
+        .simul-box.ok{border-left:4px solid #27ae60}
+        .simul-box.erro{border-left:4px solid #e74c3c}
+        .simul-box table{width:100%;border-collapse:collapse;margin-top:6px}
+        .simul-box td{padding:4px 8px;border-bottom:1px solid #eee;font-size:12px}
+        .simul-box td.lab{color:#999;width:130px}
+        .simul-box .item-ok{color:#27ae60}
+        .simul-box .item-erro{color:#e74c3c}
+        table.itens{width:100%;border-collapse:collapse;margin-top:8px}
+        table.itens th,table.itens td{text-align:left;padding:5px 8px;border-bottom:1px solid #eee;font-size:12px}
+        table.itens th{color:#999;font-weight:600}
+        .empty{text-align:center;padding:40px;color:#999}
+        .orc-link{font-weight:700;color:#2980b9}
+        .erro-detalhes{margin-top:8px;padding:10px;background:#fef3cd;border-radius:4px;font-size:12px;display:none}
+        .erro-detalhes.show{display:block}
+        .erro-detalhes pre{white-space:pre-wrap;font-size:11px;color:#856404;margin-top:4px;max-height:200px;overflow-y:auto}
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Importação de Pedidos</h1>
+        <a href="/">&larr; Voltar ao Painel</a>
+    </div>
+    <div class="container">
+        <div class="nav-links">
+            <a href="/admin">Pedidos</a>
+            <a href="/admin/pedidos-importacao" class="active">Importação</a>
+            <a href="/admin/configuracao">Configuração</a>
+        </div>
+
+        <div id="mensagem" class="msg"></div>
+        <div id="status-dry-run" style="text-align:center;margin-bottom:15px;"></div>
+
+        <div class="stats" id="stats"></div>
+        <div id="lista-pedidos"></div>
+    </div>
+
+    <script>
+        let dryRun = true;
+        let diagnosticosCache = {};
+
+        async function carregarConfig() {
+            const r = await fetch('/api/admin/config');
+            const c = await r.json();
+            dryRun = c.dry_run === 'true';
+            const div = document.getElementById('status-dry-run');
+            if (dryRun) {
+                div.innerHTML = '<span style="background:#fef3cd;color:#856404;padding:8px 20px;border-radius:20px;font-weight:700;">&#9888; DRY RUN ATIVADO - Nenhum pedido ser&aacute; gravado no Firebird</span>';
+            } else {
+                div.innerHTML = '<span style="background:#d4edda;color:#155724;padding:8px 20px;border-radius:20px;font-weight:700;">&#10003; DRY RUN DESATIVADO - Pedidos ser&atilde;o importados para o Firebird</span>';
+            }
+        }
+
+        function statusIcon(valido) {
+            return valido ? '<span style="color:#27ae60;">&#10003;</span>' : '<span style="color:#e74c3c;">&#10007;</span>';
+        }
+
+        async function carregarPedidos() {
+            const r = await fetch('/api/admin/pedidos-importacao');
+            const pedidos = await r.json();
+
+            const aceitos = pedidos.filter(p => p.status === 'ACEITO' && !p.importado).length;
+            const importados = pedidos.filter(p => p.importado).length;
+            const ignorados = pedidos.filter(p => p.status === 'IGNORADO').length;
+            const recusados = pedidos.filter(p => p.status === 'RECUSADO' || p.status === 'CANCELADO').length;
+            document.getElementById('stats').innerHTML = `
+                <div class="stat"><div class="num num-orange">${aceitos}</div><div class="lab">A Importar</div></div>
+                <div class="stat"><div class="num num-blue">${importados}</div><div class="lab">Importados</div></div>
+                <div class="stat"><div class="num num-gray">${ignorados}</div><div class="lab">Ignorados</div></div>
+                <div class="stat"><div class="num num-red">${recusados}</div><div class="lab">Cancelados</div></div>
+                <div class="stat"><div class="num num-green">${pedidos.length}</div><div class="lab">Total</div></div>
+            `;
+
+            const container = document.getElementById('lista-pedidos');
+            if (pedidos.length === 0) {
+                container.innerHTML = '<div class="empty">Nenhum pedido encontrado</div>';
+                return;
+            }
+
+            container.innerHTML = pedidos.map(p => {
+                const pendente = p.status === 'ACEITO' && !p.importado;
+                const importado = p.importado;
+                const orcId = p.id_orcamento_firebird || p.orcamento_id;
+                const numOrc = p.numero_orcamento || p.orcamento_id;
+                return `
+                <div class="pedido" id="pedido-${p.id}">
+                    <div class="hdr">
+                        <div>
+                            <div class="numero">
+                                Pedido #${p.id}
+                                ${importado ? '<span class="tag tag-importado">Importado</span>' : pendente ? '<span class="tag tag-pendente">Pendente</span>' : ''}
+                            </div>
+                            <div class="info">${p.nome_cliente || 'Cliente n&atilde;o identificado'} ${p.fone ? '- ' + p.fone : ''}</div>
+                            <div class="info" style="font-size:11px;color:#999;">ID Externo: ${p.id_externo || '-'} &middot; ${new Date(p.criado_em).toLocaleString('pt-BR')}</div>
+                            ${p.logradouro_entrega ? `<div class="info">${p.logradouro_entrega}, ${p.numero_entrega||''} ${p.bairro_entrega ? '- '+p.bairro_entrega : ''} ${p.complemento ? '('+p.complemento+')' : ''}</div>` : ''}
+                        </div>
+                        <div style="text-align:right">
+                            <div class="valor">R$ ${(p.valor_total||0).toFixed(2).replace('.',',')}</div>
+                            <span class="badge badge-${p.status}">${p.status}</span>
+                            <div style="font-size:12px;color:#999;margin-top:2px;">${p.forma_pagamento||''}${p.forma_pagamento_detalhe ? ': '+p.forma_pagamento_detalhe : ''}</div>
+                            ${importado && orcId ? `<div style="font-size:13px;color:#2980b9;margin-top:4px;">Or&ccedil;amento HOST: #${numOrc}${orcId !== numOrc ? ' (ID='+orcId+')' : ''}</div>` : ''}
+                            ${p.data_importacao && importado ? `<div style="font-size:11px;color:#999;margin-top:2px;">Importado em: ${new Date(p.data_importacao).toLocaleString('pt-BR')}</div>` : ''}
+                            ${p.erro_importacao && !importado ? `<div style="font-size:11px;color:#e74c3c;margin-top:2px;max-width:200px;word-break:break-word;">Erro: ${p.erro_importacao}</div>` : ''}
+                        </div>
+                    </div>
+
+                    ${p.itens && p.itens.length ? `
+                    <table class="itens">
+                        <tr><th>#</th><th>Produto</th><th>Qtd</th><th>Valor Unit.</th><th>Total</th></tr>
+                        ${p.itens.map((i,idx) => `
+                            <tr>
+                                <td style="color:#999;width:20px;">${idx+1}</td>
+                                <td>${i.produto||'Produto #'+i.id_produto}</td>
+                                <td>${i.quantidade}</td>
+                                <td>R$ ${(i.valor_unitario||0).toFixed(2).replace('.',',')}</td>
+                                <td>R$ ${(i.valor_total||0).toFixed(2).replace('.',',')}</td>
+                            </tr>
+                        `).join('')}
+                    </table>
+                    ` : ''}
+
+                    <div class="simul-box" id="simul-${p.id}"></div>
+
+                    ${pendente ? `
+                    <div class="acoes">
+                        <button class="btn btn-primary" onclick="simular(${p.id})">&#128269; Simular</button>
+                        <button class="btn btn-success" onclick="importar(${p.id})" id="btn-imp-${p.id}">&#128190; Importar para Or&ccedil;amento</button>
+                        <button class="btn btn-warning" onclick="ignorar(${p.id})">&#10007; Ignorar</button>
+                        <button class="btn btn-danger" onclick="cancelar(${p.id})">&#128465; Cancelar</button>
+                    </div>
+                    ` : importado ? `
+                    <div class="acoes">
+                        <span style="font-size:13px;color:#27ae60;">&#10003; Importado como ORCAMENTO #${numOrc || '?'}</span>
+                    </div>
+                    ` : `
+                    <div class="acoes">
+                        <span style="font-size:13px;color:#999;">Pedido ${p.status.toLowerCase()}</span>
+                    </div>
+                    `}
+
+                    <div class="erro-detalhes" id="erro-det-${p.id}">
+                        <strong style="color:#856404;">&#9888; Detalhes do erro de importa&ccedil;&atilde;o:</strong>
+                        <div id="erro-det-content-${p.id}"></div>
+                    </div>
+                </div>
+                `;
+            }).join('');
+
+            // Carregar diagnostico para pedidos pendentes
+            pedidos.filter(p => p.status === 'ACEITO' && !p.importado).forEach(p => {
+                carregarDiagnostico(p.id);
+            });
+        }
+
+        async function carregarDiagnostico(id) {
+            try {
+                const r = await fetch('/api/admin/pedidos/' + id + '/diagnosticar');
+                const diag = await r.json();
+                diagnosticosCache[id] = diag;
+                mostrarDiagnostico(id, diag);
+            } catch(e) {
+                console.error('Erro ao carregar diagnostico do pedido ' + id, e);
+            }
+        }
+
+        function mostrarDiagnostico(id, diag) {
+            const div = document.getElementById('simul-' + id);
+            if (!div) return;
+
+            if (!diag.itens_validacao || diag.itens_validacao.length === 0) {
+                return;
+            }
+
+            let html = '<table style="margin-top:4px;width:100%;"><tr><th>#</th><th>Firebird</th><th>Produto</th><th>Status</th></tr>';
+            diag.itens_validacao.forEach(item => {
+                const icone = statusIcon(item.valido);
+                const fbNome = item.nome_firebird || item.produto || 'ID ' + item.id_produto;
+                const cor = item.valido ? 'color:#27ae60;' : 'color:#e74c3c;';
+                html += '<tr>' +
+                    '<td style="width:20px;">' + item.item + '</td>' +
+                    '<td style="' + cor + '">' + icone + '</td>' +
+                    '<td>' + (fbNome || '-') + '</td>' +
+                    '<td style="font-size:11px;' + cor + '">' + (item.motivo || '-') + '</td>' +
+                    '</tr>';
+            });
+            html += '</table>';
+
+            if (diag.apto_para_importar) {
+                div.className = 'simul-box ok';
+                div.innerHTML = '<strong style="color:#27ae60;">&#10003; Todos os itens validados no Firebird</strong>' + html;
+            } else {
+                div.className = 'simul-box erro';
+                div.innerHTML = '<strong style="color:#e74c3c;">&#9888; Problemas encontrados na validacao</strong>' + html;
+            }
+            div.style.display = 'block';
+        }
+
+        async function simular(id) {
+            try {
+                const r = await fetch('/api/admin/pedidos/' + id + '/simular', { method: 'POST' });
+                const data = await r.json();
+                const div = document.getElementById('simul-' + id);
+                if (data.valido) {
+                    div.className = 'simul-box ok';
+                    div.style.display = 'block';
+                    let html = '<strong style="color:#27ae60;">&#10003; Valida&ccedil;&atilde;o OK - Pedido pode ser importado</strong>';
+                    html += '<table>';
+                    html += '<tr><td class="lab">Cliente</td><td>' + (data.dados.cliente || 'Consumidor padr&atilde;o') + '</td></tr>';
+                    html += '<tr><td class="lab">Telefone</td><td>' + (data.dados.fone || '-') + '</td></tr>';
+                    html += '<tr><td class="lab">Pagamento</td><td>'+ (data.dados.pagamento || '-') + '</td></tr>';
+                    html += '<tr><td class="lab">Itens</td><td>' + data.dados.itens + '</td></tr>';
+                    html += '<tr><td class="lab">Total</td><td>R$ ' + data.dados.total.toFixed(2).replace('.',',') + '</td></tr>';
+                    html += '<tr><td class="lab">Tabela destino</td><td>' + data.dados.tabela_destino + '</td></tr>';
+                    html += '<tr><td class="lab">Status or&ccedil;amento</td><td>' + data.dados.status_orcamento + '</td></tr>';
+                    html += '</table>';
+
+                    // Per-item validation
+                    if (data.itens_validacao && data.itens_validacao.length) {
+                        html += '<table style="margin-top:8px;"><tr><th>Item</th><th>Produto</th><th>Firebird</th><th>Status</th></tr>';
+                        data.itens_validacao.forEach((item, idx) => {
+                            const ok = item.existe_firebird && item.status_firebird === 'ATIVO';
+                            html += '<tr>' +
+                                '<td>' + (idx+1) + '</td>' +
+                                '<td>' + (item.produto || 'ID '+item.id_produto) + '</td>' +
+                                '<td class="' + (item.existe_firebird ? 'item-ok' : 'item-erro') + '">' +
+                                (item.existe_firebird ? (item.nome_firebird || '&#10003;') : '&#10007; N&atilde;o encontrado') +
+                                '</td>' +
+                                '<td class="' + (ok ? 'item-ok' : 'item-erro') + '">' +
+                                (item.status_firebird || '-') +
+                                '</td></tr>';
+                        });
+                        html += '</table>';
+                    }
+                    div.innerHTML = html;
+                } else {
+                    div.className = 'simul-box erro';
+                    div.style.display = 'block';
+                    div.innerHTML = '<strong style="color:#e74c3c;">&#10007; Falha na valida&ccedil;&atilde;o</strong>';
+                    if (data.erros && data.erros.length) {
+                        div.innerHTML += '<ul style="margin-top:6px;">' + data.erros.map(e => '<li style="color:#e74c3c;font-size:12px;">' + e + '</li>').join('') + '</ul>';
+                    }
+                }
+            } catch(e) {
+                mostrarMsg('Erro ao simular: ' + e.message, 'error');
+            }
+        }
+
+        async function importar(id) {
+            if (dryRun) {
+                mostrarMsg(
+                    'DRY_RUN est&aacute; ativado! V&aacute; em <a href="/admin/configuracao" style="color:#721c24;font-weight:700;">Configura&ccedil;&atilde;o</a> e desative o DRY RUN, ou use o comando: <code style="background:#f5f5f5;padding:2px 6px;border-radius:3px;">python importar_pedido.py --id ' + id + ' --confirmar</code>',
+                    'error'
+                );
+                return;
+            }
+            if (!confirm('Importar pedido #' + id + ' como ORCAMENTO no Firebird?')) return;
+
+            const btn = document.getElementById('btn-imp-' + id);
+            btn.disabled = true;
+            btn.textContent = 'Importando...';
+
+            // Limpar erro anterior
+            const errDiv = document.getElementById('erro-det-' + id);
+            errDiv.classList.remove('show');
+
+            try {
+                const r = await fetch('/api/admin/pedidos/' + id + '/importar', { method: 'POST' });
+                const data = await r.json();
+                if (data.ok) {
+                    mostrarMsg(
+                        'Pedido #' + id + ' importado com sucesso como ' +
+                        '<strong>ORCAMENTO #' + data.numero_orcamento + '</strong>! ' +
+                        '(ID Firebird: ' + data.orcamento_id + ')',
+                        'success'
+                    );
+                    carregarPedidos();
+                } else {
+                    let msg = 'Erro ao importar pedido #' + id + ': ' + (data.erro || data.mensagem || '');
+                    if (data.erros && data.erros.length) {
+                        msg += '<ul>' + data.erros.map(e => '<li>' + e + '</li>').join('') + '</ul>';
+                    }
+                    mostrarMsg(msg, 'error');
+
+                    // Mostrar detalhes dos itens no erro
+                    if (data.detalhes && data.detalhes.itens && data.detalhes.itens.length) {
+                        const errDetDiv = document.getElementById('erro-det-' + id);
+                        errDetDiv.classList.add('show');
+                        let html = '<table class="itens" style="margin-top:4px;">';
+                        html += '<tr><th>#</th><th>ID Produto</th><th>Produto</th><th>Qtd</th><th>Pre&ccedil;o</th><th>Total</th></tr>';
+                        data.detalhes.itens.forEach((item, idx) => {
+                            html += '<tr><td>'+(idx+1)+'</td><td>'+(item.id_produto||'-')+'</td><td>'+(item.produto||'')+'</td><td>'+(item.quantidade||'')+'</td><td>R$ '+(item.valor_unitario||0).toFixed(2).replace('.',',')+'</td><td>R$ '+(item.valor_total||0).toFixed(2).replace('.',',')+'</td></tr>';
+                        });
+                        html += '</table>';
+                        document.getElementById('erro-det-content-' + id).innerHTML = html;
+                    }
+
+                    btn.disabled = false;
+                    btn.textContent = 'Importar para Orçamento';
+                }
+            } catch(e) {
+                mostrarMsg('Erro de conex&atilde;o: ' + e.message, 'error');
+                btn.disabled = false;
+                btn.textContent = 'Importar para Orçamento';
+            }
+        }
+
+        async function ignorar(id) {
+            if (!confirm('Ignorar pedido #' + id + '? Ele n&atilde;o ser&aacute; importado.')) return;
+            await fetch('/api/admin/pedidos/' + id + '/ignorar', { method: 'POST' });
+            carregarPedidos();
+        }
+
+        async function cancelar(id) {
+            if (!confirm('Cancelar pedido #' + id + '?')) return;
+            await fetch('/api/admin/pedidos/' + id + '/cancelar', { method: 'POST' });
+            carregarPedidos();
+        }
+
+        function mostrarMsg(msg, tipo) {
+            const div = document.getElementById('mensagem');
+            div.innerHTML = msg;
+            div.className = 'msg msg-' + tipo;
+            clearTimeout(window._msgTimer);
+            window._msgTimer = setTimeout(() => { div.style.display = 'none'; }, 8000);
+        }
+
+        carregarConfig();
+        carregarPedidos();
+    </script>
+</body>
+</html>

@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Novo Pedido</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; color: #333; }
+        .header { background: #2c3e50; color: white; padding: 20px; text-align: center; }
+        .header h1 { font-size: 24px; }
+        .header a { color: #3498db; text-decoration: none; font-size: 14px; }
+        .container { max-width: 800px; margin: 20px auto; padding: 0 20px; }
+        .card { background: white; border-radius: 8px; padding: 20px; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .card h3 { margin-bottom: 15px; color: #2c3e50; }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 5px; font-weight: 500; font-size: 14px; color: #555; }
+        .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
+        .form-group textarea { height: 80px; resize: vertical; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
+        th, td { text-align: left; padding: 10px; border-bottom: 1px solid #eee; font-size: 14px; }
+        th { color: #999; font-weight: normal; }
+        .btn { padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-weight: 500; }
+        .btn-primary { background: #3498db; color: white; }
+        .btn-primary:hover { background: #2980b9; }
+        .btn-success { background: #27ae60; color: white; }
+        .btn-success:hover { background: #219a52; }
+        .btn-danger { background: #e74c3c; color: white; }
+        .btn-danger:hover { background: #c0392b; }
+        .btn-sm { padding: 5px 10px; font-size: 12px; }
+        .total-row { text-align: right; font-size: 18px; font-weight: bold; margin-top: 10px; }
+        .busca-produto { margin-bottom: 10px; }
+        .resultados-busca { max-height: 200px; overflow-y: auto; border: 1px solid #ddd; border-radius: 4px; display: none; }
+        .resultados-busca div { padding: 10px; cursor: pointer; border-bottom: 1px solid #eee; }
+        .resultados-busca div:hover { background: #f0f0f0; }
+        .msg { padding: 15px; border-radius: 4px; margin-bottom: 15px; display: none; }
+        .msg-success { background: #d4edda; color: #155724; display: block; }
+        .msg-error { background: #f8d7da; color: #721c24; display: block; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Novo Pedido Online</h1>
+        <a href="/">&larr; Voltar ao Painel</a>
+    </div>
+    <div class="container">
+        <div id="mensagem" class="msg"></div>
+
+        <div class="card">
+            <h3>Dados do Cliente</h3>
+            <div class="form-group">
+                <label>Buscar Cliente</label>
+                <input type="text" id="busca-cliente" placeholder="Nome, CPF ou CNPJ...">
+                <div class="resultados-busca" id="resultados-clientes"></div>
+            </div>
+            <div class="form-group">
+                <label>Nome do Cliente</label>
+                <input type="text" id="nome-cliente" required>
+            </div>
+            <div class="form-group">
+                <label>CPF/CNPJ</label>
+                <input type="text" id="cpf-cnpj">
+            </div>
+            <div class="form-group">
+                <label>Telefone</label>
+                <input type="text" id="telefone">
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>Itens do Pedido</h3>
+            <div class="busca-produto">
+                <input type="text" id="busca-produto" placeholder="Buscar produto por nome ou c&oacute;digo..." style="width:100%;padding:10px;border:1px solid #ddd;border-radius:4px;">
+                <div class="resultados-busca" id="resultados-produtos"></div>
+            </div>
+            <table>
+                <thead>
+                    <tr><th>Produto</th><th>Qtd</th><th>Valor Unit.</th><th>Total</th><th></th></tr>
+                </thead>
+                <tbody id="itens-tbody"></tbody>
+            </table>
+            <div class="total-row">Total: R$ <span id="total-pedido">0,00</span></div>
+        </div>
+
+        <div class="card">
+            <h3>Forma de Pagamento</h3>
+            <div class="form-group">
+                <select id="forma-pagamento">
+                    <option value="">Selecione...</option>
+                    <option value="DINHEIRO">Dinheiro</option>
+                    <option value="CARTAO">Cart&atilde;o</option>
+                    <option value="PIX">PIX</option>
+                    <option value="PRAZO">Prazo</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Observa&ccedil;&atilde;o</label>
+                <textarea id="observacao" placeholder="Observa&ccedil;&otilde;es sobre o pedido..."></textarea>
+            </div>
+            <button class="btn btn-success" onclick="finalizarPedido()" style="width:100%;">Finalizar Pedido</button>
+        </div>
+    </div>
+
+    <script>
+        let itens = [];
+        let clienteSelecionado = null;
+
+        // Busca cliente
+        document.getElementById('busca-cliente').addEventListener('input', async function() {
+            const q = this.value;
+            if (q.length < 2) { document.getElementById('resultados-clientes').style.display = 'none'; return; }
+            const res = await fetch(`/api/clientes?search=${encodeURIComponent(q)}`);
+            const clientes = await res.json();
+            const div = document.getElementById('resultados-clientes');
+            if (clientes.length === 0) { div.style.display = 'none'; return; }
+            div.innerHTML = clientes.map(c => `
+                <div onclick="selecionarCliente(${c.id_cliente}, '${c.cliente.replace(/'/g, "\\'")}', '${c.cpf_cnpj || ''}', '${c.fone || ''}')">
+                    <strong>${c.cliente}</strong> ${c.cpf_cnpj ? '- ' + c.cpf_cnpj : ''}
+                </div>
+            `).join('');
+            div.style.display = 'block';
+        });
+
+        function selecionarCliente(id, nome, cpf, fone) {
+            clienteSelecionado = id;
+            document.getElementById('nome-cliente').value = nome;
+            document.getElementById('cpf-cnpj').value = cpf;
+            document.getElementById('telefone').value = fone;
+            document.getElementById('resultados-clientes').style.display = 'none';
+            document.getElementById('busca-cliente').value = nome;
+        }
+
+        // Busca produto
+        document.getElementById('busca-produto').addEventListener('input', async function() {
+            const q = this.value;
+            if (q.length < 2) { document.getElementById('resultados-produtos').style.display = 'none'; return; }
+            const res = await fetch(`/api/produtos?search=${encodeURIComponent(q)}`);
+            const produtos = await res.json();
+            const div = document.getElementById('resultados-produtos');
+            if (produtos.length === 0) { div.style.display = 'none'; return; }
+            div.innerHTML = produtos.map(p => `
+                <div onclick="adicionarItem(${p.id_produto}, '${p.produto.replace(/'/g, "\\'")}', ${p.valor_venda || 0})">
+                    <strong>${p.produto}</strong> - R$ ${(p.valor_venda || 0).toFixed(2)}
+                    <span style="color:#999;font-size:12px;">Est: ${(p.estoque || 0).toFixed(2)}</span>
+                </div>
+            `).join('');
+            div.style.display = 'block';
+        });
+
+        function adicionarItem(id, nome, valor) {
+            const exists = itens.find(i => i.id_produto === id);
+            if (exists) {
+                exists.quantidade += 1;
+            } else {
+                itens.push({ id_produto: id, produto: nome, gtin: '', quantidade: 1, valor_unitario: valor, valor_total: valor });
+            }
+            document.getElementById('resultados-produtos').style.display = 'none';
+            document.getElementById('busca-produto').value = '';
+            renderItens();
+        }
+
+        function renderItens() {
+            const tbody = document.getElementById('itens-tbody');
+            let total = 0;
+            tbody.innerHTML = itens.map((item, idx) => {
+                const subtotal = item.quantidade * item.valor_unitario;
+                item.valor_total = subtotal;
+                total += subtotal;
+                return `<tr>
+                    <td>${item.produto}</td>
+                    <td><input type="number" value="${item.quantidade}" min="0.01" step="1" style="width:60px;" onchange="atualizarQtd(${idx}, this.value)"></td>
+                    <td>R$ ${item.valor_unitario.toFixed(2)}</td>
+                    <td>R$ ${subtotal.toFixed(2)}</td>
+                    <td><button class="btn btn-danger btn-sm" onclick="removerItem(${idx})">X</button></td>
+                </tr>`;
+            }).join('');
+            document.getElementById('total-pedido').textContent = total.toFixed(2).replace('.', ',');
+        }
+
+        function atualizarQtd(idx, val) {
+            itens[idx].quantidade = parseFloat(val) || 0;
+            renderItens();
+        }
+
+        function removerItem(idx) {
+            itens.splice(idx, 1);
+            renderItens();
+        }
+
+        async function finalizarPedido() {
+            const nomeCliente = document.getElementById('nome-cliente').value;
+            if (!nomeCliente) { mostrarMsg('Informe o nome do cliente', 'error'); return; }
+            if (itens.length === 0) { mostrarMsg('Adicione pelo menos um item', 'error'); return; }
+
+            const total = itens.reduce((s, i) => s + i.quantidade * i.valor_unitario, 0);
+
+            const pedido = {
+                id_cliente: clienteSelecionado,
+                nome_cliente: nomeCliente,
+                cpf_cnpj: document.getElementById('cpf-cnpj').value,
+                fone_cliente: document.getElementById('telefone').value,
+                valor_total: total,
+                forma_pagamento: document.getElementById('forma-pagamento').value,
+                observacao: document.getElementById('observacao').value,
+                itens: itens
+            };
+
+            try {
+                const res = await fetch('/api/pedidos', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(pedido)
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    mostrarMsg(`Pedido #${data.id} criado com sucesso!`, 'success');
+                    itens = [];
+                    clienteSelecionado = null;
+                    document.getElementById('nome-cliente').value = '';
+                    document.getElementById('cpf-cnpj').value = '';
+                    document.getElementById('telefone').value = '';
+                    document.getElementById('busca-cliente').value = '';
+                    document.getElementById('forma-pagamento').value = '';
+                    document.getElementById('observacao').value = '';
+                    renderItens();
+                } else {
+                    mostrarMsg('Erro ao criar pedido: ' + (data.error || 'Erro desconhecido'), 'error');
+                }
+            } catch (e) {
+                mostrarMsg('Erro de conex&atilde;o', 'error');
+            }
+        }
+
+        function mostrarMsg(msg, tipo) {
+            const div = document.getElementById('mensagem');
+            div.textContent = msg;
+            div.className = 'msg msg-' + tipo;
+            setTimeout(() => { div.style.display = 'none'; }, 5000);
+        }
+    </script>
+</body>
+</html>

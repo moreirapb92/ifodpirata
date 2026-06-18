@@ -1,0 +1,75 @@
+services:
+  # ============================================================================
+  # PORTAL ONLINE (Flask + SQLite)
+  # ============================================================================
+  - type: web
+    name: ifodpirata-portal
+    env: python
+    region: sao-paulo  # or ohio, frankfurt, singapore
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn wsgi:app --bind 0.0.0.0:$PORT --workers 2 --timeout 30
+    healthCheckPath: /loja2
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: PORTAL_SECRET_KEY
+        generateValue: true
+      - key: PORTAL_API_KEY
+        generateValue: true
+      - key: PORTAL_HOST
+        value: 0.0.0.0
+      - key: PORTAL_URL
+        value: https://ifodpirata-portal.onrender.com
+      - key: SYNC_INTERVAL_SECONDS
+        value: "60"
+      - key: IMAGENS_PRODUTOS_DIR
+        value: /data/imgProdutos
+      # ── Database ──
+      - key: SQLITE_DB_PATH
+        value: /data/portal.db
+      # ── PostgreSQL (future) ──
+      # - key: DATABASE_URL
+      #   fromDatabase:
+      #     name: ifodpirata-db
+      #     property: connectionString
+    disk:
+      name: portal-data
+      mountPath: /data
+      sizeGB: 1
+
+  # ============================================================================
+  # AGENTE LOCAL (Firebird → Portal sync) - runs on-premise or as Render Worker
+  # ============================================================================
+  - type: worker
+    name: ifodpirata-agent
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python run_agent.py
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: FB_HOST
+        value: ""                         # empty = local Firebird
+      - key: FB_DATABASE
+        value: C:\TSD\Host\HOST.FDB
+      - key: FB_USER
+        value: SYSDBA
+      - key: FB_PASSWORD
+        value: masterkey
+      - key: FB_PORT
+        value: "3050"
+      - key: PORTAL_URL
+        value: https://ifodpirata-portal.onrender.com
+      - key: PORTAL_API_KEY
+        fromService:
+          type: web
+          name: ifodpirata-portal
+          envVarKey: PORTAL_API_KEY
+      - key: SYNC_INTERVAL_SECONDS
+        value: "60"
+      - key: DESTINO_PEDIDO
+        value: ORCAMENTO
+      - key: DRY_RUN
+        value: "true"                     # change to "false" for production
