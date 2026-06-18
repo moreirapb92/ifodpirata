@@ -1,0 +1,31 @@
+; IfodPirata Agente - Arquivo de Configuracao
+; Edite os valores abaixo com os dados do seu cliente.
+; Caminho: C:\IfodPirataAgente\config.ini
+
+[portal]
+; URL do portal online (Render)
+PORTAL_URL=https://ifodpirata.onrender.com
+; Slug da empresa (definido no admin /admin/empresas)
+EMPRESA_SLUG=mercadinho-boa-esperanca
+; Chave de API da empresa (gerada no admin /admin/empresas)
+PORTAL_API_KEY=COLOCAR_CHAVE_AQUI
+
+[firebird]
+; Caminho completo do banco de dados HOST.FDB
+FDB_PATH=C:\TSD\HOST\HOST.FDB
+; Usuario do Firebird (padrao: SYSDBA)
+USER=SYSDBA
+; Senha do Firebird (padrao: masterkey)
+PASSWORD=masterkey
+
+[agent]
+; Destino do pedido no HOST: ORCAMENTO (padrao) ou PRVD
+DESTINO_PEDIDO=ORCAMENTO
+; Modo dry-run: true = apenas simula, nao grava no Firebird
+DRY_RUN=false
+; Intervalo entre sincronizacoes em segundos (modo continuo)
+INTERVALO_SYNC=60
+
+[imagens]
+; Pasta onde o HOST armazena as imagens dos produtos
+IMAGENS_PRODUTOS_DIR=C:\TSD\Host\imgProdutos

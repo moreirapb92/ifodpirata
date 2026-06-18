@@ -169,7 +169,7 @@ def sync_full():
         db.execute("""INSERT INTO produtos (id_produto, empresa_id, produto, gtin, ncm, unidade,
             valor_venda, valor_atacado, valor_aprazo, estoque,
             grupo, subgrupo, marca, nome_grupo, nome_subgrupo, nome_marca, foto, status)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (p.get("ID_PRODUTO"), empresa_id, p.get("PRODUTO"), p.get("GTIN"), p.get("NCM"),
              p.get("UNIDADE"), p.get("VALOR_VENDA"), p.get("VALOR_ATACADO"),
              p.get("VALOR_APRAZO"), p.get("ESTOQUE"),
