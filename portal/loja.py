@@ -322,7 +322,7 @@ def servir_imagem_produto(filename):
 
 
 CATEGORIA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", "img", "categorias")
-IMAGENS_PRODUTOS_DIR = os.getenv("IMAGENS_PRODUTOS_DIR", "").strip() or r"C:\TSD\Host\imgProdutos"
+IMAGENS_PRODUTOS_DIR = os.path.abspath(os.getenv("IMAGENS_PRODUTOS_DIR", "").strip() or r"C:\TSD\Host\imgProdutos")
 
 
 @loja_bp.route("/static/img/categorias/<path:filename>")

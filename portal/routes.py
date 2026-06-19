@@ -210,7 +210,7 @@ def sync_full():
 
 
 def _get_imagens_produtos_dir():
-    return os.getenv("IMAGENS_PRODUTOS_DIR", "").strip() or r"C:\TSD\Host\imgProdutos"
+    return os.path.abspath(os.getenv("IMAGENS_PRODUTOS_DIR", "").strip() or r"C:\TSD\Host\imgProdutos")
 
 
 @api.route("/diagnosticar-imagens", methods=["GET"])
