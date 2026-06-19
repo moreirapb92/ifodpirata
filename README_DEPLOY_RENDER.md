@@ -259,35 +259,48 @@ Sem ele, a cada deploy o SQLite e criado vazio e voce precisa rodar `sincronizar
 
 ## Apos cada deploy: repovoar o portal
 
-Se o banco SQLite no Render foi recriado (redeploy sem disco persistente), execute:
+Render Free **nao mantem dados** entre deploys. Apos cada deploy, execute:
+
+### Comando unico (recomendado)
 
 ```bash
 cd C:\Users\NONATO\Documents\ifodpirata
-
-# 1. Testar se esta vazio
-python testar_render.py
-# Saida esperada: "Portal online sem produtos. Rode python sincronizar_render.py"
-
-# 2. Sincronizar Firebird -> Portal
-python sincronizar_render.py
 ```
 
-O comando `sincronizar_render.py` le os dados do Firebird local e envia para o portal online.
-
-Para verificar se funcionou:
-```bash
-python testar_render.py
-# Saida esperada: "Portal OK com 11944 produtos e 18 grupos."
+**PowerShell:**
+```powershell
+$env:PORTAL_URL="https://ifodpirata.onrender.com"
+$env:PORTAL_API_KEY="SUA_CHAVE"
+python deploy_completo.py
 ```
 
-### Comandos uteis
+**CMD:**
+```cmd
+set PORTAL_URL=https://ifodpirata.onrender.com
+set PORTAL_API_KEY=SUA_CHAVE
+python deploy_completo.py
+```
+
+O `deploy_completo.py` executa em sequencia:
+1. Testa se o portal esta online
+2. Sincroniza produtos, grupos e clientes do Firebird
+3. Envia as fotos dos produtos (5553 arquivos)
+4. Verifica o resultado final
+
+### Comandos individuais
 
 ```bash
 # Testar conexao
 python testar_render.py
 
-# Sincronizar agora
+# Sincronizar dados
 python sincronizar_render.py
+
+# Sincronizar fotos (~20 min)
+python sincronizar_fotos_render.py
+
+# Diagnosticar imagens no Render
+python diagnosticar_imagens_render.py
 
 # Importar pedidos pendentes do portal para o HOST
 python importar_pedidos_online.py
