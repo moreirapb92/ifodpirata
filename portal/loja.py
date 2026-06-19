@@ -299,18 +299,21 @@ def api_checkout():
 
 @loja_bp.route("/api/loja/produto/<int:produto_id>/foto")
 def api_foto_produto(produto_id):
-    """Redireciona para a foto real do produto. Se não existir, retorna 404."""
+    """Serve a foto real do produto diretamente. Se nao existir, retorna 404 com placeholder."""
     db = get_db()
     row = db.execute("SELECT foto FROM produtos WHERE id_produto = ?", [produto_id]).fetchone()
     if not row or not row["foto"]:
         return "", 404
-    return redirect(f"/api/loja/produto-imagem/{row['foto']}")
+    safe_name = os.path.basename(row["foto"])
+    caminho = os.path.join(IMAGENS_PRODUTOS_DIR, safe_name)
+    if not os.path.isfile(caminho):
+        return "", 404
+    return send_from_directory(IMAGENS_PRODUTOS_DIR, safe_name)
 
 
 @loja_bp.route("/api/loja/produto-imagem/<path:filename>")
 def servir_imagem_produto(filename):
     """Serve a imagem real do produto do disco local."""
-    import os
     safe_name = os.path.basename(filename)
     caminho = os.path.join(IMAGENS_PRODUTOS_DIR, safe_name)
     if not os.path.isfile(caminho):

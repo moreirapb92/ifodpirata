@@ -1,10 +1,14 @@
 import sqlite3
 import json
 import os
+import logging
 from flask import Blueprint, request, jsonify, g, render_template, redirect, url_for, flash
 from werkzeug.exceptions import HTTPException
+from werkzeug.utils import secure_filename
 
 from portal.models import get_db, init_db
+
+log = logging.getLogger("routes")
 
 api = Blueprint("api", __name__, url_prefix="/api")
 
@@ -203,6 +207,39 @@ def sync_full():
              c.get("STATUS"), c.get("LMTE_CREDITO")))
     db.commit()
     return jsonify({"ok": True, "empresa_id": empresa_id, "produtos": len(data.get("produtos", [])), "clientes": len(data.get("clientes", []))})
+
+
+def _get_imagens_produtos_dir():
+    return os.getenv("IMAGENS_PRODUTOS_DIR", "").strip() or os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", "img", "produtos")
+
+
+@api.route("/sync/produto-foto", methods=["POST"])
+@require_api_key
+def sync_produto_foto():
+    """Recebe upload de uma foto de produto do agente local."""
+    produto_id = request.form.get("produto_id")
+    nome_arquivo = request.form.get("nome_arquivo")
+    arquivo = request.files.get("arquivo")
+
+    if not arquivo or not produto_id or not nome_arquivo:
+        return jsonify({"error": "Missing produto_id, nome_arquivo or arquivo"}), 400
+
+    safe_name = secure_filename(os.path.basename(nome_arquivo))
+    if not safe_name:
+        return jsonify({"error": "Invalid filename"}), 400
+
+    destino_dir = _get_imagens_produtos_dir()
+    os.makedirs(destino_dir, exist_ok=True)
+    destino = os.path.join(destino_dir, safe_name)
+
+    if os.path.isfile(destino):
+        log.info(f"Foto ja existe, ignorando: {safe_name}")
+        return jsonify({"ok": True, "status": "already_exists", "filename": safe_name})
+
+    arquivo.save(destino)
+    log.info(f"Foto salva: {safe_name} ({len(open(destino,'rb').read())} bytes)")
+
+    return jsonify({"ok": True, "status": "saved", "filename": safe_name})
 
 
 # ----- Portal: Order management -----

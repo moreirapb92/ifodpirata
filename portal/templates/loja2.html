@@ -377,7 +377,7 @@ async function carregarProds(reset) {
       var preco = pr.valor_venda || 0;
       var ps = preco.toFixed(2).replace(".", ",");
       var imgHtml = pr.foto
-        ? '<div class="ib"><img src="/api/loja/produto/' + pr.id_produto + '/foto" alt="' + h(pr.produto) + '" loading="lazy"></div>'
+        ? '<div class="ib"><img src="/api/loja/produto/' + pr.id_produto + '/foto" alt="' + h(pr.produto) + '" loading="lazy" onerror="this.onerror=null;this.style.display=\'none\';this.parentElement.innerHTML=\'<div class=si>Sem imagem</div>\'"></div>'
         : '<div class="si">Sem imagem</div>';
       var btnHtml = qtd > 0
         ? '<div class="qc"><button onclick="dq(' + pr.id_produto + ')">&minus;</button><span class="qv">' + qtd + '</span><button onclick="aq(' + pr.id_produto + ')">+</button></div>'
