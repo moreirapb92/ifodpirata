@@ -210,7 +210,7 @@ def sync_full():
 
 
 def _get_imagens_produtos_dir():
-    return os.getenv("IMAGENS_PRODUTOS_DIR", "").strip() or os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", "img", "produtos")
+    return os.getenv("IMAGENS_PRODUTOS_DIR", "").strip() or r"C:\TSD\Host\imgProdutos"
 
 
 @api.route("/sync/produto-foto", methods=["POST"])
