@@ -213,6 +213,26 @@ def _get_imagens_produtos_dir():
     return os.getenv("IMAGENS_PRODUTOS_DIR", "").strip() or r"C:\TSD\Host\imgProdutos"
 
 
+@api.route("/diagnosticar-imagens", methods=["GET"])
+def diagnosticar_imagens():
+    import os
+    env_val = os.getenv("IMAGENS_PRODUTOS_DIR", "")
+    dir_path = _get_imagens_produtos_dir()
+    existe = os.path.isdir(dir_path)
+    arquivos = []
+    if existe:
+        arquivos = os.listdir(dir_path)[:10]
+    return jsonify({
+        "IMAGENS_PRODUTOS_DIR_ENV": env_val,
+        "resolved_path": dir_path,
+        "directory_exists": existe,
+        "sample_files": arquivos,
+        "total_files": len(os.listdir(dir_path)) if existe else 0,
+        "cwd": os.getcwd(),
+        "routes_py_dir": os.path.dirname(os.path.abspath(__file__)),
+    })
+
+
 @api.route("/sync/produto-foto", methods=["POST"])
 @require_api_key
 def sync_produto_foto():
