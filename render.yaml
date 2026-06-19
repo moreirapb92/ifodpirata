@@ -26,7 +26,7 @@ services:
       - key: SYNC_INTERVAL_SECONDS
         value: "60"
       - key: IMAGENS_PRODUTOS_DIR
-        value: /data/imgProdutos
+        value: "/data/imgProdutos"
       # ── Database ──
       - key: SQLITE_DB_PATH
         value: /data/portal.db
